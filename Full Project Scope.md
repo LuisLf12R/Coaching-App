@@ -761,6 +761,7 @@ Current status:
   - repository: `https://github.com/LuisLf12R/Coaching-App.git`
   - branch: `main`
   - initial commit pushed: `e6651ad Initial backend scaffold`
+  - latest commit pushed: `fc35e0c Add auth and database foundation`
 - Initial backend scaffold has been created:
   - `pyproject.toml`
   - `README.md`
@@ -779,6 +780,10 @@ Current status:
 - Health endpoint validation passed with `uv run pytest`.
 - Local server validation passed with `GET /health`.
 - Current test validation passed with `uv run pytest`: 11 tests passing.
+- Cleanliness validation passed:
+  - `git diff --check`
+  - `uv run pytest`
+  - `uv run alembic upgrade head --sql`
 - Local Postgres has been configured through Docker Compose:
   - `docker-compose.yml`
   - database: `garmin_api_coach_dev`
@@ -800,6 +805,7 @@ Current status:
   - activities
 - Local raw Garmin exports should live in ignored `data/raw/`.
 - Docker was not available in the current shell, so the containerized Postgres service has not been started yet.
+- Real online migration validation with `uv run alembic upgrade head` is still pending until Docker is available.
 - The backend framework is FastAPI.
 - Dependency management is `uv`.
 - Auth should be shaped around provider-neutral OIDC/JWT claims with a local/test bypass.
@@ -861,6 +867,9 @@ Already created in the third build session:
 4. Local ignored raw-data folder:
    - `data/raw/`
 5. Database setup tests.
+6. Cleanup check found no stale files, duplicated modules, or unused project files worth removing.
+7. Changes were committed and pushed to `origin/main`:
+   - `fc35e0c Add auth and database foundation`
 
 Next build session should create only after checkpoint approval:
 
