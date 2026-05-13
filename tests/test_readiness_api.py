@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from garmin_api_coach.db import models  # noqa: F401
 from garmin_api_coach.db.base import Base
-from garmin_api_coach.db.models import Activity, Client, Coach, DataImport, TrainingReadinessMetric
+from garmin_api_coach.db.models import Activity, Client, Coach, DataImport, SleepMetric, TrainingReadinessMetric
 from garmin_api_coach.db.session import get_db_session
 from garmin_api_coach.main import create_app
 
@@ -48,6 +48,8 @@ def test_readiness_summary_is_activity_only_and_conservative() -> None:
         "DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json"
     ]
     assert factors["running_consistency"]["status"] == "green"
+    assert factors["sleep_detail"]["status"] == "yellow"
+    assert factors["sleep_detail"]["missing_inputs"] == ["sleep_detail"]
     assert factors["recovery_data"]["status"] == "yellow"
     assert factors["recovery_data"]["missing_inputs"] == [
         "sleep",
@@ -111,6 +113,42 @@ def test_readiness_summary_uses_latest_training_readiness_metric() -> None:
     assert "score 36" in factors["training_readiness"]["summary"]
     assert factors["recovery_data"]["status"] == "green"
     assert factors["recovery_data"]["missing_inputs"] == ["sleep_detail", "health_status_detail"]
+
+
+def test_readiness_summary_uses_latest_sleep_metric() -> None:
+    api, db = _test_client()
+    client = _seed_running_history(db)
+    data_import = db.scalar(select(DataImport).where(DataImport.client_id == client.id))
+    assert data_import is not None
+    db.add(
+        SleepMetric(
+            client_id=client.id,
+            data_import_id=data_import.id,
+            provider="garmin",
+            source_file="DI_CONNECT/DI-Connect-Wellness/2026-02-03_2026-05-14_116034249_sleepData.json",
+            source_record_id="2026-05-12",
+            calendar_date=datetime(2026, 5, 12, tzinfo=timezone.utc).date(),
+            overall_score=84,
+            quality_score=80,
+            duration_score=100,
+            recovery_score=68,
+        )
+    )
+    db.commit()
+
+    response = api.get("/readiness/summary", params={"client_id": client.id})
+
+    assert response.status_code == 200
+    payload = response.json()
+    factors = {factor["name"]: factor for factor in payload["factors"]}
+
+    assert factors["sleep_detail"]["status"] == "green"
+    assert factors["sleep_detail"]["source_files"] == [
+        "DI_CONNECT/DI-Connect-Wellness/2026-02-03_2026-05-14_116034249_sleepData.json"
+    ]
+    assert "sleep score is 84" in factors["sleep_detail"]["summary"]
+    assert factors["recovery_data"]["status"] == "green"
+    assert factors["recovery_data"]["missing_inputs"] == ["training_readiness", "health_status_detail"]
 
 
 def _seed_empty_client(db: Session) -> Client:

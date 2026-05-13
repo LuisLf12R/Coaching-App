@@ -7,6 +7,7 @@ from zipfile import BadZipFile, ZipFile
 DI_CONNECT_PREFIX = "DI_CONNECT/"
 SUMMARIZED_ACTIVITIES_SUFFIX = "_summarizedActivities.json"
 TRAINING_READINESS_PREFIX = "DI_CONNECT/DI-Connect-Metrics/TrainingReadinessDTO_"
+SLEEP_DATA_SUFFIX = "_sleepData.json"
 
 
 class GarminExportInspectionError(ValueError):
@@ -24,6 +25,7 @@ class GarminExportInspection:
     di_connect_folders: tuple[str, ...]
     summarized_activity_files: tuple[str, ...]
     training_readiness_files: tuple[str, ...]
+    sleep_data_files: tuple[str, ...]
 
     @property
     def has_di_connect(self) -> bool:
@@ -36,6 +38,10 @@ class GarminExportInspection:
     @property
     def training_readiness_file_count(self) -> int:
         return len(self.training_readiness_files)
+
+    @property
+    def sleep_data_file_count(self) -> int:
+        return len(self.sleep_data_files)
 
     def to_summary(self) -> dict[str, object]:
         return {
@@ -50,6 +56,8 @@ class GarminExportInspection:
             "summarized_activity_file_count": self.summarized_activity_file_count,
             "training_readiness_files": list(self.training_readiness_files),
             "training_readiness_file_count": self.training_readiness_file_count,
+            "sleep_data_files": list(self.sleep_data_files),
+            "sleep_data_file_count": self.sleep_data_file_count,
         }
 
 
@@ -94,6 +102,14 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
             if name.startswith(TRAINING_READINESS_PREFIX)
         )
     )
+    sleep_data_files = tuple(
+        sorted(
+            name
+            for name in json_files
+            if name.startswith("DI_CONNECT/DI-Connect-Wellness/")
+            and name.endswith(SLEEP_DATA_SUFFIX)
+        )
+    )
 
     return GarminExportInspection(
         source_path=export_path,
@@ -105,4 +121,5 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
         di_connect_folders=di_connect_folders,
         summarized_activity_files=summarized_activity_files,
         training_readiness_files=training_readiness_files,
+        sleep_data_files=sleep_data_files,
     )

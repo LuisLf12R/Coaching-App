@@ -4,7 +4,7 @@ Date: 2026-05-13
 
 ## Current Status
 
-`GarminAPICoach` is a backend-first FastAPI coaching data platform. The current backend can inspect a Garmin export ZIP, parse summarized Garmin activity JSON, import normalized activities, import Garmin training readiness metrics, expose coach-scoped activity APIs, return deterministic activity analytics, and return a source-attributed readiness summary.
+`GarminAPICoach` is a backend-first FastAPI coaching data platform. The current backend can inspect a Garmin export ZIP, parse summarized Garmin activity JSON, import normalized activities, import Garmin training readiness metrics, import Garmin sleep metrics, expose coach-scoped activity APIs, return deterministic activity analytics, and return a source-attributed readiness summary.
 
 The first real data source is the private Garmin export ZIP in ignored local raw data:
 
@@ -18,6 +18,9 @@ The ZIP has been validated locally with:
 - 865 Garmin TrainingReadinessDTO records seen
 - 864 Garmin TrainingReadinessDTO records parsed
 - 280 unique daily training readiness metrics stored after upsert
+- 984 Garmin sleep records seen
+- 978 Garmin sleep records parsed
+- 978 unique daily sleep metrics stored after upsert
 
 ## Built
 
@@ -32,6 +35,9 @@ The ZIP has been validated locally with:
 - Garmin TrainingReadinessDTO parser.
 - Garmin training readiness database import service.
 - `training_readiness_metrics` database table and migration.
+- Garmin sleep data parser.
+- Garmin sleep data database import service.
+- `sleep_metrics` database table and migration.
 - Client APIs:
   - `GET /clients`
   - `POST /clients`
@@ -47,13 +53,14 @@ The ZIP has been validated locally with:
 
 The current readiness endpoint is intentionally conservative.
 
-It uses normalized activities and the latest imported Garmin TrainingReadinessDTO record when available. It does not infer detailed sleep or health-status data until those source files are imported.
+It uses normalized activities, the latest imported Garmin TrainingReadinessDTO record when available, and the latest imported Garmin sleep record when available. It does not infer health-status data until that source is imported.
 
 Current readiness factors:
 
 - `activity_history`
 - `running_consistency`
 - `training_readiness`
+- `sleep_detail`
 - `recovery_data`
 - `data_quality`
 
@@ -63,7 +70,7 @@ Current readiness statuses:
 - `yellow`
 - `red`
 
-With no training readiness data imported, the overall readiness status will usually be `yellow`. With imported training readiness, the latest Garmin score and level can move the overall status to `green`, `yellow`, or `red`.
+With no recovery data imported, the overall readiness status will usually be `yellow`. With imported training readiness or sleep data, the latest Garmin scores can move contributing factors to `green`, `yellow`, or `red`.
 
 ## Key Files
 
@@ -73,8 +80,10 @@ With no training readiness data imported, the overall readiness status will usua
 - `src/garmin_api_coach/providers/garmin/export_inspector.py`
 - `src/garmin_api_coach/providers/garmin/summarized_activities.py`
 - `src/garmin_api_coach/providers/garmin/training_readiness.py`
+- `src/garmin_api_coach/providers/garmin/sleep_data.py`
 - `src/garmin_api_coach/imports/garmin_summarized_activities.py`
 - `src/garmin_api_coach/imports/garmin_training_readiness.py`
+- `src/garmin_api_coach/imports/garmin_sleep_data.py`
 - `src/garmin_api_coach/analytics/activity_overview.py`
 - `src/garmin_api_coach/analytics/readiness.py`
 - `src/garmin_api_coach/api/activities.py`
@@ -82,6 +91,8 @@ With no training readiness data imported, the overall readiness status will usua
 - `src/garmin_api_coach/api/readiness.py`
 - `tests/test_garmin_training_readiness.py`
 - `tests/test_garmin_training_readiness_import_service.py`
+- `tests/test_garmin_sleep_data.py`
+- `tests/test_garmin_sleep_data_import_service.py`
 - `tests/test_readiness_api.py`
 
 ## Validation
@@ -95,7 +106,7 @@ uv run pytest
 Result:
 
 ```text
-36 passed
+44 passed
 ```
 
 The first sandboxed test run failed because `uv` could not access `/Users/luisr/.cache/uv` from the restricted sandbox. The tests passed when rerun with approved cache access.
@@ -115,10 +126,10 @@ Import the next detailed recovery-related Garmin JSON source and wire it into re
 
 Recommended order:
 
-1. Inspect the local Garmin export files for sleep, health status, acute training load, and UDS aggregator shapes.
-2. Choose one small source to import next, likely sleep data or health status.
+1. Inspect the local Garmin export files for health status, acute training load, and UDS aggregator shapes.
+2. Choose one small source to import next, likely health status.
 3. Add a normalized recovery/readiness data model only for fields that are actually observed.
 4. Extend `GET /readiness/summary` with source-attributed recovery factors.
 5. Add tests proving missing inputs remain explicit.
 
-Do not add LLM analysis until deterministic readiness has at least one detailed recovery input beyond Garmin's aggregate training readiness score.
+Do not add LLM analysis until deterministic readiness has health-status context beyond Garmin's aggregate training readiness score and detailed sleep records.

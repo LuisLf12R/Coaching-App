@@ -642,12 +642,13 @@ Build:
 - missing recovery-data warnings
 - placeholder-free scoring, no fake health inference
 - source attribution for contributing activity records
-- Garmin readiness, sleep, health, wellness, and load source mapping later
+- Garmin readiness and sleep source mapping
+- Garmin health, wellness, and load source mapping later
 
 Validation:
 
-- readiness output identifies which source files contributed each available activity factor
-- missing sleep/HRV/stress/load data is explicit when unavailable
+- readiness output identifies which source files contributed each available activity and recovery factor
+- missing HRV/stress/load/health-status data is explicit when unavailable
 - no false precision
 
 Initial implementation status:
@@ -659,8 +660,11 @@ Initial implementation status:
 - Garmin `TrainingReadinessDTO` parser and database import service created
 - `training_readiness_metrics` table created for daily Garmin readiness values
 - readiness now uses the latest imported Garmin readiness score and level when available
-- missing detailed sleep and health-status inputs remain explicit until those source files are imported
-- completed as the first Phase 5 slice on 2026-05-13
+- Garmin sleep data parser and database import service created
+- `sleep_metrics` table created for daily Garmin sleep values
+- readiness now uses the latest imported Garmin sleep score when available
+- missing health-status inputs remain explicit until those source files are imported
+- completed as the first Phase 5 slices on 2026-05-13
 
 ### Phase 6: Coach-Facing LLM Analysis
 
@@ -763,13 +767,14 @@ Concrete milestone:
 12. Add first deterministic activity analytics overview endpoint. Completed.
 13. Add first readiness foundation endpoint with explicit missing recovery-data warnings. Completed.
 14. Import Garmin `TrainingReadinessDTO` records and use the latest imported value in readiness. Completed.
+15. Import Garmin sleep records and use the latest imported sleep score in readiness. Completed.
 
-This milestone proves the backend architecture, modular ingestion path, imported activity API, first deterministic analytics layer, and first source-attributed readiness API before parsing FIT files, importing detailed health metrics, adding LLM analysis, or building UI.
+This milestone proves the backend architecture, modular ingestion path, imported activity API, first deterministic analytics layer, and first source-attributed readiness API before parsing FIT files, importing broader health metrics, adding LLM analysis, or building UI.
 
 ## Open Questions
 
 1. Should OpenAI be configured globally for the platform first, or should the schema support per-coach LLM provider settings from the beginning?
-2. Which detailed recovery source should be imported next: sleep data, health status, acute training load, or UDS aggregator files?
+2. Which detailed recovery source should be imported next: health status, acute training load, or UDS aggregator files?
 3. Should readiness summaries be persisted in `readiness_scores`, or should they stay computed on demand until recovery data is imported?
 
 ## Handoff

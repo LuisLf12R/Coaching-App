@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from garmin_api_coach.analytics.activity_overview import build_activity_overview
-from garmin_api_coach.db.models import Activity, Client, TrainingReadinessMetric
+from garmin_api_coach.db.models import Activity, Client, SleepMetric, TrainingReadinessMetric
 
 
 RECOVERY_INPUTS = (
@@ -42,12 +42,14 @@ def build_readiness_summary(db: Session, *, coach_id: str, client_id: Optional[s
     activities = _load_coach_activities(db, coach_id=coach_id, client_id=client_id)
     activity_source_files = _source_files(activities)
     latest_training_readiness = _latest_training_readiness(db, coach_id=coach_id, client_id=client_id)
+    latest_sleep = _latest_sleep(db, coach_id=coach_id, client_id=client_id)
 
     factors = [
         _activity_history_factor(overview.activity_count, activity_source_files),
         _running_consistency_factor(overview.running_summary.activity_count, overview.running_summary.active_weeks),
         _training_readiness_factor(latest_training_readiness),
-        _recovery_data_factor(latest_training_readiness),
+        _sleep_detail_factor(latest_sleep),
+        _recovery_data_factor(latest_training_readiness, latest_sleep),
         _data_quality_factor(overview.missing_data_warnings),
     ]
     warnings = _warnings(factors, overview.missing_data_warnings)
@@ -82,6 +84,19 @@ def _latest_training_readiness(
     if client_id is not None:
         query = query.where(TrainingReadinessMetric.client_id == client_id)
     query = query.order_by(TrainingReadinessMetric.calendar_date.desc(), TrainingReadinessMetric.created_at.desc())
+    return db.scalar(query.limit(1))
+
+
+def _latest_sleep(
+    db: Session,
+    *,
+    coach_id: str,
+    client_id: Optional[str],
+) -> Optional[SleepMetric]:
+    query = select(SleepMetric).join(Client, SleepMetric.client_id == Client.id).where(Client.coach_id == coach_id)
+    if client_id is not None:
+        query = query.where(SleepMetric.client_id == client_id)
+    query = query.order_by(SleepMetric.calendar_date.desc(), SleepMetric.created_at.desc())
     return db.scalar(query.limit(1))
 
 
@@ -145,14 +160,55 @@ def _training_readiness_factor(metric: Optional[TrainingReadinessMetric]) -> Rea
     )
 
 
-def _recovery_data_factor(metric: Optional[TrainingReadinessMetric]) -> ReadinessFactor:
-    if metric is not None:
+def _sleep_detail_factor(metric: Optional[SleepMetric]) -> ReadinessFactor:
+    if metric is None:
+        return ReadinessFactor(
+            name="sleep_detail",
+            status="yellow",
+            summary="Detailed Garmin sleep data has not been imported yet.",
+            missing_inputs=["sleep_detail"],
+        )
+
+    if metric.overall_score is None:
+        return ReadinessFactor(
+            name="sleep_detail",
+            status="yellow",
+            summary=f"Latest Garmin sleep record is available for {metric.calendar_date.isoformat()}, but it has no overall sleep score.",
+            source_files=[metric.source_file],
+            missing_inputs=["sleep_score"],
+        )
+
+    return ReadinessFactor(
+        name="sleep_detail",
+        status=_status_from_score(metric.overall_score),
+        summary=f"Latest Garmin sleep score is {metric.overall_score} on {metric.calendar_date.isoformat()}.",
+        source_files=[metric.source_file],
+    )
+
+
+def _recovery_data_factor(
+    training_readiness: Optional[TrainingReadinessMetric],
+    sleep: Optional[SleepMetric],
+) -> ReadinessFactor:
+    source_files = []
+    missing_inputs = []
+    if training_readiness is not None:
+        source_files.append(training_readiness.source_file)
+    else:
+        missing_inputs.append("training_readiness")
+    if sleep is not None:
+        source_files.append(sleep.source_file)
+    else:
+        missing_inputs.append("sleep_detail")
+    missing_inputs.append("health_status_detail")
+
+    if training_readiness is not None or sleep is not None:
         return ReadinessFactor(
             name="recovery_data",
             status="green",
-            summary="Garmin training readiness provides a source-attributed recovery signal. Detailed sleep and health imports can add more context later.",
-            source_files=[metric.source_file],
-            missing_inputs=["sleep_detail", "health_status_detail"],
+            summary="Imported Garmin recovery records provide source-attributed readiness context. Health-status imports can add more context later.",
+            source_files=sorted(set(source_files)),
+            missing_inputs=missing_inputs,
         )
 
     return ReadinessFactor(
@@ -196,6 +252,14 @@ def _status_from_training_readiness(level: str, score: int) -> str:
     return "green"
 
 
+def _status_from_score(score: int) -> str:
+    if score < 40:
+        return "red"
+    if score < 70:
+        return "yellow"
+    return "green"
+
+
 def _source_files(activities: list[Activity]) -> list[str]:
     return sorted({activity.source_file for activity in activities if activity.source_file})
 
@@ -203,8 +267,16 @@ def _source_files(activities: list[Activity]) -> list[str]:
 def _warnings(factors: list[ReadinessFactor], activity_warnings: list[str]) -> list[str]:
     warnings = list(activity_warnings)
     for factor in factors:
-        if factor.name == "recovery_data" and "training_readiness" in factor.missing_inputs:
+        if factor.name != "recovery_data":
+            continue
+        missing_inputs = set(factor.missing_inputs)
+        if not factor.source_files:
             warnings.append("Recovery inputs are missing, so this readiness status is activity-only and conservative.")
-        if factor.name == "recovery_data" and "training_readiness" not in factor.missing_inputs:
-            warnings.append("Detailed sleep and health-status records have not been imported yet.")
+            continue
+        if "training_readiness" in missing_inputs:
+            warnings.append("Garmin training readiness records have not been imported yet.")
+        if "sleep_detail" in missing_inputs:
+            warnings.append("Detailed sleep records have not been imported yet.")
+        if "health_status_detail" in missing_inputs:
+            warnings.append("Detailed health-status records have not been imported yet.")
     return warnings

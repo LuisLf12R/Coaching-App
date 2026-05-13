@@ -61,6 +61,7 @@ class Client(Base):
     imports: Mapped[list["DataImport"]] = relationship(back_populates="client")
     activities: Mapped[list["Activity"]] = relationship(back_populates="client")
     training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="client")
+    sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="client")
 
 
 class DataImport(Base):
@@ -80,6 +81,7 @@ class DataImport(Base):
     raw_records: Mapped[list["RawRecord"]] = relationship(back_populates="data_import")
     activities: Mapped[list["Activity"]] = relationship(back_populates="data_import")
     training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="data_import")
+    sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="data_import")
 
 
 class RawRecord(Base):
@@ -191,3 +193,48 @@ class TrainingReadinessMetric(Base):
 
     client: Mapped["Client"] = relationship(back_populates="training_readiness_metrics")
     data_import: Mapped["DataImport"] = relationship(back_populates="training_readiness_metrics")
+
+
+class SleepMetric(Base):
+    __tablename__ = "sleep_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "client_id",
+            "calendar_date",
+            name="uq_sleep_metrics_provider_client_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), nullable=False, index=True)
+    data_import_id: Mapped[str] = mapped_column(ForeignKey("data_imports.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    calendar_date: Mapped[date] = mapped_column(Date(), nullable=False, index=True)
+    sleep_start_gmt: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    sleep_end_gmt: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    deep_sleep_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    light_sleep_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rem_sleep_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    awake_sleep_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    unmeasurable_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    awake_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    restless_moment_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    avg_sleep_stress: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    average_respiration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lowest_respiration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    highest_respiration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    overall_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    quality_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    duration_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recovery_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    restfulness_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    feedback: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    insight: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    client: Mapped["Client"] = relationship(back_populates="sleep_metrics")
+    data_import: Mapped["DataImport"] = relationship(back_populates="sleep_metrics")

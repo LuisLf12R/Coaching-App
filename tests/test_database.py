@@ -18,6 +18,7 @@ def test_initial_database_models_are_registered() -> None:
         "activity_type_mappings",
         "activities",
         "training_readiness_metrics",
+        "sleep_metrics",
     }
 
     assert expected_tables.issubset(Base.metadata.tables.keys())
