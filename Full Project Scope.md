@@ -728,17 +728,17 @@ Build the backend skeleton and first Garmin ZIP summarized-activity ingestion pa
 
 Concrete milestone:
 
-1. Initial FastAPI/`uv` scaffold accepted as the first checkpoint.
-2. Config module and local/test auth dependency created after Luis approved the shape.
-3. Configure Postgres through Docker Compose after confirming Docker availability.
-4. Create SQLAlchemy and Alembic setup.
-5. Define initial models for coaches, clients, data imports, raw records, activity type mappings, and normalized activities.
-6. Add project raw-data guidance for storing the Garmin export ZIP without committing sensitive source data.
-7. Build Garmin export ZIP inspector.
-8. Build Garmin summarized activities JSON adapter.
+1. Initial FastAPI/`uv` scaffold accepted as the first checkpoint. Completed.
+2. Config module and local/test auth dependency created after Luis approved the shape. Completed.
+3. Configure Postgres through Docker Compose after confirming Docker availability. Completed.
+4. Create SQLAlchemy and Alembic setup. Completed.
+5. Define initial models for coaches, clients, data imports, raw records, activity type mappings, and normalized activities. Completed.
+6. Add project raw-data guidance for storing the Garmin export ZIP without committing sensitive source data. Completed.
+7. Build Garmin export ZIP inspector. Completed.
+8. Build Garmin summarized activities JSON adapter. Completed.
 9. Import the 3175 summarized activity records for one initial client.
 10. Expose API endpoints to query normalized activities and activity summaries.
-11. Add tests for parsing, validation, import summaries, and API responses.
+11. Add tests for database import, API responses, and activity summary responses.
 
 This milestone proves the backend architecture and modular ingestion path before parsing FIT files, adding richer readiness logic, or building UI.
 
@@ -761,7 +761,7 @@ Current status:
   - repository: `https://github.com/LuisLf12R/Coaching-App.git`
   - branch: `main`
   - initial commit pushed: `e6651ad Initial backend scaffold`
-  - latest commit pushed: `fc35e0c Add auth and database foundation`
+  - latest commit pushed: `Add Garmin summarized activity parsing`
 - Initial backend scaffold has been created:
   - `pyproject.toml`
   - `README.md`
@@ -830,10 +830,73 @@ Current status:
 - The first real importer should target `DI_CONNECT/DI-Connect-Fitness/*_summarizedActivities.json`.
 - The export contains 3175 summarized activity records.
 - The export contains 18597 uploaded FIT files inside nested ZIPs, but FIT parsing should come later.
+- Garmin ZIP structure inspector has been created:
+  - `src/garmin_api_coach/providers/__init__.py`
+  - `src/garmin_api_coach/providers/garmin/__init__.py`
+  - `src/garmin_api_coach/providers/garmin/export_inspector.py`
+  - `tests/test_garmin_export_inspector.py`
+- The inspector reads ZIP metadata only. It does not extract or persist private Garmin data.
+- Inspector output includes:
+  - total file entries
+  - JSON file count
+  - nested ZIP file count
+  - PNG file count
+  - top-level folders
+  - `DI_CONNECT` folders
+  - summarized activity JSON paths
+- Local Garmin export validation confirmed:
+  - 4 summarized activity JSON files
+  - 151 JSON files
+  - 7 nested ZIP files
+- Garmin summarized activities JSON adapter has been created:
+  - `src/garmin_api_coach/providers/garmin/summarized_activities.py`
+  - `tests/test_garmin_summarized_activities.py`
+- The summarized activity adapter is separate from the ZIP inspector and database import layer.
+- The adapter reads summarized activity JSON files discovered by the inspector or an explicit file list.
+- The adapter validates stable summarized activity fields:
+  - `activityId`
+  - `activityType`
+  - `sportType`
+  - `startTimeGmt`
+  - `startTimeLocal`
+  - `duration`
+  - `distance`
+  - `avgSpeed`
+  - `avgHr`
+  - `maxHr`
+  - `calories`
+  - `steps`
+  - `trainingEffectLabel`
+  - `activityTrainingLoad`
+- The adapter preserves:
+  - provider name
+  - parser version
+  - source file path inside the ZIP
+  - source activity ID
+  - selected Garmin-specific provider metadata for later mapping
+- The adapter reports:
+  - files parsed
+  - records seen
+  - records parsed
+  - records invalid
+  - validation issues
+  - activity types seen
+  - sport types seen
+  - unknown activity types
+  - unknown sport types
+- Local private Garmin export validation confirmed:
+  - 4 summarized activity JSON files
+  - 3175 summarized activity records seen
+  - 3175 summarized activity records parsed
+  - 0 invalid summarized activity records
+  - 0 unknown activity types
+  - 0 unknown sport types
+- `pydantic` is now declared as a direct dependency because provider schemas use it directly.
+- Current test validation passed with `uv run pytest`: 19 tests passing.
 
 Best next step:
 
-After Docker is installed or available on PATH, start local Postgres and run the first migration. Then build the Garmin ZIP structure inspector.
+Build the database import layer for parsed Garmin summarized activities. It should create a data import record, preserve raw records, write normalized activities, and report database import counts without parsing FIT files yet.
 
 Already created in the first build session:
 
@@ -871,14 +934,51 @@ Already created in the third build session:
 7. Changes were committed and pushed to `origin/main`:
    - `fc35e0c Add auth and database foundation`
 
+Already created in the fourth build session:
+
+1. Garmin provider package:
+   - `src/garmin_api_coach/providers/__init__.py`
+   - `src/garmin_api_coach/providers/garmin/__init__.py`
+2. Garmin ZIP structure inspector:
+   - `src/garmin_api_coach/providers/garmin/export_inspector.py`
+3. ZIP inspector tests:
+   - synthetic ZIP structure test
+   - missing file error test
+   - invalid ZIP error test
+   - local private Garmin export structure test, skipped if the raw ZIP is absent
+4. Validation:
+   - `uv run pytest tests/test_garmin_export_inspector.py`: 4 tests passing
+   - `uv run pytest`: 15 tests passing
+
+Already created in the fifth build session:
+
+1. Garmin summarized activity parser:
+   - `src/garmin_api_coach/providers/garmin/summarized_activities.py`
+2. Pydantic schema validation for stable summarized activity fields.
+3. Parsed activity result objects shaped for the next database import layer.
+4. Import summary objects with file counts, row counts, invalid records, and unknown type reporting.
+5. Tests for:
+   - synthetic wrapped Garmin export ZIP parsing
+   - explicit summarized activity file selection
+   - unsupported JSON structure errors
+   - optional private local ZIP validation for 3175 records
+6. Dependency metadata update:
+   - `pydantic` declared directly in `pyproject.toml`
+   - `uv.lock` refreshed
+7. Validation:
+   - `uv run pytest tests/test_garmin_summarized_activities.py`: 4 tests passing
+   - `uv run pytest`: 19 tests passing
+   - `git diff --check`: passing
+
 Next build session should create only after checkpoint approval:
 
-1. Verify Docker is installed or available on PATH.
-2. Run `docker compose up -d`.
-3. Run `uv run alembic upgrade head`.
-4. Build Garmin ZIP structure inspector.
-5. Build Garmin summarized activities adapter.
-6. Basic tests for parsing and import validation.
+1. Build Garmin summarized activities database importer.
+2. Create one `data_imports` row per ZIP import.
+3. Preserve raw summarized activity records in `raw_records`.
+4. Write parsed records into `activities`.
+5. Add idempotency or duplicate-source handling for provider plus source activity ID.
+6. Add tests for database import counts, raw record preservation, normalized activity writes, and duplicate handling.
+7. Do not parse FIT files yet.
 
 Reason:
 
