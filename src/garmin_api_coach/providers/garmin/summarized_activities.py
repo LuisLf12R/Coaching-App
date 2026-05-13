@@ -119,6 +119,7 @@ class ParsedGarminSummarizedActivity:
     training_effect_label: Optional[str]
     activity_training_load: Optional[float]
     provider_metadata: dict[str, Any]
+    raw_payload: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -317,6 +318,7 @@ def _parse_record(
         training_effect_label=record.training_effect_label,
         activity_training_load=record.activity_training_load,
         provider_metadata=_provider_metadata_from_record(record),
+        raw_payload=raw_record,
     )
 
 

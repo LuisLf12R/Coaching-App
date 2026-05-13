@@ -2,11 +2,14 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from garmin_api_coach.db.base import Base
+
+
+json_storage_type = JSONB().with_variant(JSON(), "sqlite")
 
 
 def generate_id() -> str:
@@ -69,7 +72,7 @@ class DataImport(Base):
     source_type: Mapped[str] = mapped_column(String(100), nullable=False)
     parser_version: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(50), nullable=False)
-    summary: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    summary: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
     imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     client: Mapped["Client"] = relationship(back_populates="imports")
@@ -87,7 +90,7 @@ class RawRecord(Base):
     source_record_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     parser_version: Mapped[str] = mapped_column(String(50), nullable=False)
     validation_status: Mapped[str] = mapped_column(String(50), nullable=False)
-    payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    payload: Mapped[dict[str, Any]] = mapped_column(json_storage_type, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     data_import: Mapped["DataImport"] = relationship(back_populates="raw_records")
@@ -138,7 +141,7 @@ class Activity(Base):
     steps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     training_effect_label: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
     activity_training_load: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     client: Mapped["Client"] = relationship(back_populates="activities")

@@ -736,9 +736,9 @@ Concrete milestone:
 6. Add project raw-data guidance for storing the Garmin export ZIP without committing sensitive source data. Completed.
 7. Build Garmin export ZIP inspector. Completed.
 8. Build Garmin summarized activities JSON adapter. Completed.
-9. Import the 3175 summarized activity records for one initial client.
-10. Expose API endpoints to query normalized activities and activity summaries.
-11. Add tests for database import, API responses, and activity summary responses.
+9. Import the 3175 summarized activity records for one initial client. Completed.
+10. Expose API endpoints to query normalized activities and activity summaries. Completed.
+11. Add tests for database import, API responses, and activity summary responses. Completed.
 
 This milestone proves the backend architecture and modular ingestion path before parsing FIT files, adding richer readiness logic, or building UI.
 
@@ -761,7 +761,7 @@ Current status:
   - repository: `https://github.com/LuisLf12R/Coaching-App.git`
   - branch: `main`
   - initial commit pushed: `e6651ad Initial backend scaffold`
-  - latest commit pushed: `Add Garmin summarized activity parsing`
+  - latest commit pushed: `Add Garmin import service and activity APIs`
 - Initial backend scaffold has been created:
   - `pyproject.toml`
   - `README.md`
@@ -779,7 +779,7 @@ Current status:
   - `tests/test_auth.py`
 - Health endpoint validation passed with `uv run pytest`.
 - Local server validation passed with `GET /health`.
-- Current test validation passed with `uv run pytest`: 11 tests passing.
+- Current test validation passed with `uv run pytest`: 25 tests passing.
 - Cleanliness validation passed:
   - `git diff --check`
   - `uv run pytest`
@@ -803,6 +803,25 @@ Current status:
   - raw_records
   - activity_type_mappings
   - activities
+- Garmin summarized activity import service has been created:
+  - service module: `src/garmin_api_coach/imports/garmin_summarized_activities.py`
+  - requires an existing client id, tested with an explicit placeholder client
+  - creates a `data_import` row per import run
+  - creates one `raw_records` row per summarized Garmin activity
+  - upserts duplicate normalized `activities` by provider and source activity id
+  - stores parser/import counts in the data import summary
+- The local private Garmin export import path has been validated in a temporary test database:
+  - source: `data/raw/642bffa2-69d5-466c-9599-eb82c5e5124b_1.zip`
+  - summarized activity records imported: 3175
+  - raw records created: 3175
+  - normalized activities inserted: 3175
+- First coach-facing API endpoints around imported data have been created:
+  - `GET /clients`
+  - `POST /clients`
+  - `GET /activities`
+  - `GET /activity-summaries/by-type`
+- API ownership is scoped through the current authenticated coach dependency.
+- JSON fields still use Postgres `JSONB` in the application model, with a SQLite variant only to support lightweight local tests without Docker.
 - Local raw Garmin exports should live in ignored `data/raw/`.
 - Docker was not available in the current shell, so the containerized Postgres service has not been started yet.
 - Real online migration validation with `uv run alembic upgrade head` is still pending until Docker is available.
