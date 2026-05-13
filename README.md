@@ -16,6 +16,18 @@ Run tests:
 uv run pytest
 ```
 
+Start local Postgres:
+
+```bash
+docker compose up -d
+```
+
+Run database migrations:
+
+```bash
+uv run alembic upgrade head
+```
+
 Run the API locally:
 
 ```bash
@@ -27,3 +39,13 @@ Health check:
 ```text
 GET /health
 ```
+
+## Local Raw Data
+
+Keep sensitive source exports in:
+
+```text
+data/raw/
+```
+
+That folder is ignored by Git. Do not commit Garmin export ZIPs or athlete data.

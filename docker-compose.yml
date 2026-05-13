@@ -1,0 +1,20 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: garmin-api-coach-postgres
+    environment:
+      POSTGRES_DB: garmin_api_coach_dev
+      POSTGRES_USER: garmin_api_coach
+      POSTGRES_PASSWORD: garmin_api_coach
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U garmin_api_coach -d garmin_api_coach_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:

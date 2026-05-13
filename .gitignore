@@ -7,3 +7,6 @@ __pycache__/
 *.zip
 data/raw/
 raw-data/
+!data/
+data/*
+!data/.gitkeep

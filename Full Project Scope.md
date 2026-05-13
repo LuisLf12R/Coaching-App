@@ -1,6 +1,6 @@
 # Full Project Scope
 
-Date: 2026-05-12
+Date: 2026-05-13
 
 ## Product Direction
 
@@ -492,6 +492,13 @@ Recommended auth path:
 - keep Auth0 as the fallback if FastAPI-first API authorization or enterprise identity becomes more important
 - avoid direct Google OAuth as the main auth system unless the product stays very simple
 
+Current local/test auth implementation decision:
+
+- The development coach identity uses a plain string email field instead of Pydantic `EmailStr`.
+- Reason: `EmailStr` requires the optional `email-validator` dependency, and the current `/me` endpoint is only proving the local/test auth dependency shape.
+- Future step: add explicit email validation when real coach accounts, persisted users, Clerk/Auth0 claims, or invite flows are implemented.
+- Do not add `email-validator` only for the temporary local bypass unless another validated email surface needs it.
+
 Auth provider options:
 
 - Clerk: best first evaluation for a future SaaS-style coaching product because it has strong React support, prebuilt auth UI, organizations, invitations, roles, and B2B features.
@@ -721,8 +728,8 @@ Build the backend skeleton and first Garmin ZIP summarized-activity ingestion pa
 
 Concrete milestone:
 
-1. Accept the initial FastAPI/`uv` scaffold as the first checkpoint, or revise it before continuing.
-2. Add config module and local/test auth dependency after Luis approves the shape.
+1. Initial FastAPI/`uv` scaffold accepted as the first checkpoint.
+2. Config module and local/test auth dependency created after Luis approved the shape.
 3. Configure Postgres through Docker Compose after confirming Docker availability.
 4. Create SQLAlchemy and Alembic setup.
 5. Define initial models for coaches, clients, data imports, raw records, activity type mappings, and normalized activities.
@@ -750,6 +757,10 @@ Current status:
 - The first implementation lives inside `Garmin App/`.
 - The internal project name is `GarminAPICoach`.
 - `uv` has been installed locally through Homebrew.
+- The project is now connected to GitHub:
+  - repository: `https://github.com/LuisLf12R/Coaching-App.git`
+  - branch: `main`
+  - initial commit pushed: `e6651ad Initial backend scaffold`
 - Initial backend scaffold has been created:
   - `pyproject.toml`
   - `README.md`
@@ -757,12 +768,52 @@ Current status:
   - `src/garmin_api_coach/main.py`
   - `src/garmin_api_coach/api/health.py`
   - `tests/test_health.py`
+- Config and local/test auth foundation has been created:
+  - `src/garmin_api_coach/settings.py`
+  - `src/garmin_api_coach/auth/__init__.py`
+  - `src/garmin_api_coach/auth/schemas.py`
+  - `src/garmin_api_coach/auth/dependencies.py`
+  - `src/garmin_api_coach/api/me.py`
+  - `tests/test_settings.py`
+  - `tests/test_auth.py`
 - Health endpoint validation passed with `uv run pytest`.
 - Local server validation passed with `GET /health`.
-- The first database is Postgres through Docker Compose.
+- Current test validation passed with `uv run pytest`: 11 tests passing.
+- Local Postgres has been configured through Docker Compose:
+  - `docker-compose.yml`
+  - database: `garmin_api_coach_dev`
+  - user: `garmin_api_coach`
+  - local port: `5432`
+- SQLAlchemy and Alembic foundation has been created:
+  - `src/garmin_api_coach/db/base.py`
+  - `src/garmin_api_coach/db/session.py`
+  - `src/garmin_api_coach/db/models.py`
+  - `alembic.ini`
+  - `alembic/env.py`
+  - `alembic/versions/20260513_0001_initial_schema.py`
+- Initial database models have been created:
+  - coaches
+  - clients
+  - data_imports
+  - raw_records
+  - activity_type_mappings
+  - activities
+- Local raw Garmin exports should live in ignored `data/raw/`.
+- Docker was not available in the current shell, so the containerized Postgres service has not been started yet.
 - The backend framework is FastAPI.
 - Dependency management is `uv`.
 - Auth should be shaped around provider-neutral OIDC/JWT claims with a local/test bypass.
+- Current local/test auth behavior:
+  - `GET /me` returns a development coach when local auth is allowed.
+  - development coach id: `Luis-dev-coach`
+  - development coach email: `luisrivglez@gmail.com`
+  - development coach display name: `Luis`
+  - production mode or disabled local bypass returns `401 Unauthorized`.
+- Config decisions:
+  - environments are `development`, `test`, and `production`
+  - `database_url` defaults to the local Docker Compose database `garmin_api_coach_dev`
+  - `local_auth_bypass_enabled` controls the temporary local/test auth bypass
+  - `is_local_auth_allowed()` prevents local bypass from working in production
 - Clerk is the first auth provider to evaluate when real coach login and frontend work begin.
 - Auth0 is the main fallback if API-first or enterprise auth needs become more important.
 - Garmin account authorization must stay separate from platform coach login.
@@ -776,7 +827,7 @@ Current status:
 
 Best next step:
 
-Continue from the accepted backend skeleton only after Luis approves each file and design step. The next build step should be config/auth or database setup, not UI and not FIT parsing.
+After Docker is installed or available on PATH, start local Postgres and run the first migration. Then build the Garmin ZIP structure inspector.
 
 Already created in the first build session:
 
@@ -786,23 +837,39 @@ Already created in the first build session:
 4. First health endpoint test.
 5. Basic README.
 6. `.gitignore`.
+7. GitHub repository connection and initial push.
 
-Next build session should create only after checkpoint approval:
+Already created in the second build session:
 
 1. Config module.
 2. Local/test auth dependency that injects a development coach.
-3. Docker Compose Postgres service.
-4. SQLAlchemy and Alembic setup.
-5. Initial database models:
+3. Protected `GET /me` endpoint to prove the dependency works.
+4. Tests for settings and local/test auth behavior.
+5. Scope note explaining why email is currently a plain string and when to add email validation.
+
+Already created in the third build session:
+
+1. Docker Compose Postgres service.
+2. SQLAlchemy and Alembic setup.
+3. Initial database models:
    - coaches
    - clients
    - data_imports
    - raw_records
    - activity_type_mappings
    - activities
-6. Garmin ZIP structure inspector.
-7. Garmin summarized activities adapter.
-8. Basic tests for config, auth, parsing, and import validation.
+4. Local ignored raw-data folder:
+   - `data/raw/`
+5. Database setup tests.
+
+Next build session should create only after checkpoint approval:
+
+1. Verify Docker is installed or available on PATH.
+2. Run `docker compose up -d`.
+3. Run `uv run alembic upgrade head`.
+4. Build Garmin ZIP structure inspector.
+5. Build Garmin summarized activities adapter.
+6. Basic tests for parsing and import validation.
 
 Reason:
 
