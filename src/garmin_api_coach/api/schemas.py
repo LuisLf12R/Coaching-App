@@ -58,3 +58,36 @@ class ActivityTypeSummary(BaseModel):
     activity_count: int
     total_duration_seconds: Optional[float]
     total_distance_meters: Optional[float]
+
+
+class ActivityPeriodSummary(BaseModel):
+    period: str
+    activity_type: str
+    sport_type: Optional[str]
+    activity_count: int
+    total_duration_seconds: Optional[float]
+    total_distance_meters: Optional[float]
+
+
+class ActivityFocusSummaryRead(BaseModel):
+    activity_count: int
+    active_weeks: int
+    total_duration_seconds: Optional[float]
+    total_distance_meters: Optional[float]
+    missing_duration_count: int
+    missing_distance_count: int
+
+
+class ActivityOverviewRead(BaseModel):
+    client_id: Optional[str]
+    activity_count: int
+    first_activity_at: Optional[datetime]
+    last_activity_at: Optional[datetime]
+    active_days: int
+    active_weeks: int
+    sport_mix: list[ActivityTypeSummary]
+    weekly_activity_counts: list[ActivityPeriodSummary]
+    monthly_activity_counts: list[ActivityPeriodSummary]
+    running_summary: ActivityFocusSummaryRead
+    strength_summary: ActivityFocusSummaryRead
+    missing_data_warnings: list[str]

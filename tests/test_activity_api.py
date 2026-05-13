@@ -76,6 +76,99 @@ def test_activities_api_lists_coach_owned_activities_and_summarizes_by_type() ->
     ]
 
 
+def test_activity_overview_returns_deterministic_analytics() -> None:
+    api, db = _test_client()
+    client = _seed_activity_overview(db)
+
+    response = api.get("/analytics/activity-overview", params={"client_id": client.id})
+
+    assert response.status_code == 200
+    overview = response.json()
+    assert overview["client_id"] == client.id
+    assert overview["activity_count"] == 3
+    assert overview["active_days"] == 3
+    assert overview["active_weeks"] == 2
+    assert overview["running_summary"] == {
+        "activity_count": 2,
+        "active_weeks": 2,
+        "total_duration_seconds": 3600.0,
+        "total_distance_meters": 11000.0,
+        "missing_duration_count": 0,
+        "missing_distance_count": 0,
+    }
+    assert overview["strength_summary"] == {
+        "activity_count": 1,
+        "active_weeks": 1,
+        "total_duration_seconds": 2400.0,
+        "total_distance_meters": None,
+        "missing_duration_count": 0,
+        "missing_distance_count": 1,
+    }
+    assert overview["sport_mix"] == [
+        {
+            "activity_type": "running",
+            "sport_type": "RUNNING",
+            "activity_count": 2,
+            "total_duration_seconds": 3600.0,
+            "total_distance_meters": 11000.0,
+        },
+        {
+            "activity_type": "strength",
+            "sport_type": "STRENGTH_TRAINING",
+            "activity_count": 1,
+            "total_duration_seconds": 2400.0,
+            "total_distance_meters": None,
+        },
+    ]
+    assert overview["monthly_activity_counts"] == [
+        {
+            "period": "2026-05",
+            "activity_type": "running",
+            "sport_type": "RUNNING",
+            "activity_count": 2,
+            "total_duration_seconds": 3600.0,
+            "total_distance_meters": 11000.0,
+        },
+        {
+            "period": "2026-05",
+            "activity_type": "strength",
+            "sport_type": "STRENGTH_TRAINING",
+            "activity_count": 1,
+            "total_duration_seconds": 2400.0,
+            "total_distance_meters": None,
+        },
+    ]
+    assert overview["weekly_activity_counts"] == [
+        {
+            "period": "2026-04-27",
+            "activity_type": "running",
+            "sport_type": "RUNNING",
+            "activity_count": 1,
+            "total_duration_seconds": 1800.0,
+            "total_distance_meters": 5000.0,
+        },
+        {
+            "period": "2026-05-04",
+            "activity_type": "running",
+            "sport_type": "RUNNING",
+            "activity_count": 1,
+            "total_duration_seconds": 1800.0,
+            "total_distance_meters": 6000.0,
+        },
+        {
+            "period": "2026-05-04",
+            "activity_type": "strength",
+            "sport_type": "STRENGTH_TRAINING",
+            "activity_count": 1,
+            "total_duration_seconds": 2400.0,
+            "total_distance_meters": None,
+        },
+    ]
+    assert overview["missing_data_warnings"] == [
+        "Some activities are missing distance, so distance totals may be incomplete."
+    ]
+
+
 def _seed_activity(db: Session) -> Client:
     coach = Coach(
         id="Luis-dev-coach",
@@ -115,6 +208,78 @@ def _seed_activity(db: Session) -> Client:
             distance_meters=5000.0,
             provider_metadata={"elapsedDuration": 1810.0},
         )
+    )
+    db.commit()
+    db.refresh(client)
+    return client
+
+
+def _seed_activity_overview(db: Session) -> Client:
+    coach = Coach(
+        id="Luis-dev-coach",
+        email="luisrivglez@gmail.com",
+        display_name="Luis",
+        auth_provider="local",
+    )
+    client = Client(
+        coach_id=coach.id,
+        display_name="Placeholder Athlete",
+        sport_focus="running",
+    )
+    db.add_all([coach, client])
+    db.flush()
+    data_import = DataImport(
+        client_id=client.id,
+        provider="garmin",
+        source_name="garmin-export.zip",
+        source_type="garmin_export_zip",
+        parser_version="test",
+        status="completed",
+    )
+    db.add(data_import)
+    db.flush()
+    db.add_all(
+        [
+            Activity(
+                client_id=client.id,
+                data_import_id=data_import.id,
+                provider="garmin",
+                source_activity_id="garmin-activity-1",
+                source_file="DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json",
+                activity_type="running",
+                sport_type="RUNNING",
+                start_time_gmt=datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc),
+                start_time_local=datetime(2026, 5, 1, 6, 0, tzinfo=timezone.utc),
+                duration_seconds=1800.0,
+                distance_meters=5000.0,
+            ),
+            Activity(
+                client_id=client.id,
+                data_import_id=data_import.id,
+                provider="garmin",
+                source_activity_id="garmin-activity-2",
+                source_file="DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json",
+                activity_type="running",
+                sport_type="RUNNING",
+                start_time_gmt=datetime(2026, 5, 5, 12, 0, tzinfo=timezone.utc),
+                start_time_local=datetime(2026, 5, 5, 6, 0, tzinfo=timezone.utc),
+                duration_seconds=1800.0,
+                distance_meters=6000.0,
+            ),
+            Activity(
+                client_id=client.id,
+                data_import_id=data_import.id,
+                provider="garmin",
+                source_activity_id="garmin-activity-3",
+                source_file="DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json",
+                activity_type="strength",
+                sport_type="STRENGTH_TRAINING",
+                start_time_gmt=datetime(2026, 5, 6, 12, 0, tzinfo=timezone.utc),
+                start_time_local=datetime(2026, 5, 6, 6, 0, tzinfo=timezone.utc),
+                duration_seconds=2400.0,
+                distance_meters=None,
+            ),
+        ]
     )
     db.commit()
     db.refresh(client)

@@ -623,6 +623,14 @@ Validation:
 - test metrics against known summarized activity records
 - verify the system flags missing or incomplete fields correctly
 
+Initial implementation status:
+
+- deterministic activity overview service created
+- coach-scoped `/analytics/activity-overview` endpoint created
+- activity count, active days, active weeks, sport mix, weekly/monthly activity buckets, running summary, strength summary, and missing-data warnings implemented
+- API response tests added against known activity records
+- completed as the first Phase 4 slice on 2026-05-13
+
 ### Phase 5: Readiness Foundation
 
 Goal: create the readiness engine structure using available Garmin readiness, sleep, health, wellness, and load JSON without pretending FIT-level detail has been parsed.
@@ -739,8 +747,9 @@ Concrete milestone:
 9. Import the 3175 summarized activity records for one initial client. Completed.
 10. Expose API endpoints to query normalized activities and activity summaries. Completed.
 11. Add tests for database import, API responses, and activity summary responses. Completed.
+12. Add first deterministic activity analytics overview endpoint. Completed.
 
-This milestone proves the backend architecture and modular ingestion path before parsing FIT files, adding richer readiness logic, or building UI.
+This milestone proves the backend architecture, modular ingestion path, imported activity API, and first deterministic analytics layer before parsing FIT files, adding richer readiness logic, or building UI.
 
 ## Open Questions
 
@@ -761,7 +770,7 @@ Current status:
   - repository: `https://github.com/LuisLf12R/Coaching-App.git`
   - branch: `main`
   - initial commit pushed: `e6651ad Initial backend scaffold`
-  - latest commit pushed: `Add Garmin import service and activity APIs`
+  - latest pushed feature before this handoff: `Add Garmin import service and activity APIs`
 - Initial backend scaffold has been created:
   - `pyproject.toml`
   - `README.md`
@@ -779,7 +788,7 @@ Current status:
   - `tests/test_auth.py`
 - Health endpoint validation passed with `uv run pytest`.
 - Local server validation passed with `GET /health`.
-- Current test validation passed with `uv run pytest`: 25 tests passing.
+- Current test validation passed with `uv run pytest`: 26 tests passing.
 - Cleanliness validation passed:
   - `git diff --check`
   - `uv run pytest`
@@ -820,6 +829,24 @@ Current status:
   - `POST /clients`
   - `GET /activities`
   - `GET /activity-summaries/by-type`
+- First deterministic analytics endpoint has been created:
+  - `GET /analytics/activity-overview`
+  - service module: `src/garmin_api_coach/analytics/activity_overview.py`
+  - router module: `src/garmin_api_coach/api/analytics.py`
+  - response schemas in `src/garmin_api_coach/api/schemas.py`
+  - router registered in `src/garmin_api_coach/main.py`
+  - API test coverage in `tests/test_activity_api.py`
+- The activity overview currently returns:
+  - total activity count
+  - first and last activity timestamps
+  - active day count
+  - active week count
+  - sport mix
+  - weekly activity buckets
+  - monthly activity buckets
+  - running summary
+  - strength summary
+  - missing-data warnings
 - API ownership is scoped through the current authenticated coach dependency.
 - JSON fields still use Postgres `JSONB` in the application model, with a SQLite variant only to support lightweight local tests without Docker.
 - Local raw Garmin exports should live in ignored `data/raw/`.
@@ -911,11 +938,11 @@ Current status:
   - 0 unknown activity types
   - 0 unknown sport types
 - `pydantic` is now declared as a direct dependency because provider schemas use it directly.
-- Current test validation passed with `uv run pytest`: 19 tests passing.
+- Current test validation passed with `uv run pytest`: 26 tests passing.
 
 Best next step:
 
-Build the database import layer for parsed Garmin summarized activities. It should create a data import record, preserve raw records, write normalized activities, and report database import counts without parsing FIT files yet.
+Build the readiness foundation from available Garmin readiness, wellness, sleep, health, and load JSON. Keep it source-attributed and warning-driven, with no fake recovery inference.
 
 Already created in the first build session:
 
@@ -989,19 +1016,74 @@ Already created in the fifth build session:
    - `uv run pytest`: 19 tests passing
    - `git diff --check`: passing
 
+Already created in the sixth build session:
+
+1. Garmin summarized activities database importer:
+   - `src/garmin_api_coach/imports/garmin_summarized_activities.py`
+2. Import behavior:
+   - creates one `data_imports` row per ZIP import
+   - preserves one `raw_records` row per summarized Garmin activity
+   - writes normalized records into `activities`
+   - upserts duplicate activities by provider and source activity ID
+   - stores import counts in the data import summary
+3. First activity APIs:
+   - `GET /clients`
+   - `POST /clients`
+   - `GET /activities`
+   - `GET /activity-summaries/by-type`
+4. Tests for:
+   - client API behavior
+   - activity API behavior
+   - activity summary API behavior
+   - database import counts
+   - raw record preservation
+   - normalized activity writes
+   - duplicate import handling
+   - optional private local ZIP validation for 3175 imported records
+5. Validation:
+   - `uv run pytest`: 25 tests passing
+   - `git diff --check`: passing
+
+Already created in the seventh build session:
+
+1. Deterministic activity analytics service:
+   - `src/garmin_api_coach/analytics/__init__.py`
+   - `src/garmin_api_coach/analytics/activity_overview.py`
+2. Analytics API endpoint:
+   - `GET /analytics/activity-overview`
+3. Analytics response schemas:
+   - `ActivityPeriodSummary`
+   - `ActivityFocusSummaryRead`
+   - `ActivityOverviewRead`
+4. Current analytics output:
+   - activity count
+   - first and last activity timestamps
+   - active days
+   - active weeks
+   - sport mix
+   - weekly activity counts
+   - monthly activity counts
+   - running summary
+   - strength summary
+   - missing-data warnings
+5. Tests:
+   - deterministic activity overview API test added to `tests/test_activity_api.py`
+6. Validation:
+   - `uv run pytest`: 26 tests passing
+   - `git diff --check`: passing
+
 Next build session should create only after checkpoint approval:
 
-1. Build Garmin summarized activities database importer.
-2. Create one `data_imports` row per ZIP import.
-3. Preserve raw summarized activity records in `raw_records`.
-4. Write parsed records into `activities`.
-5. Add idempotency or duplicate-source handling for provider plus source activity ID.
-6. Add tests for database import counts, raw record preservation, normalized activity writes, and duplicate handling.
-7. Do not parse FIT files yet.
+1. Inspect the Garmin export wellness, metrics, aggregator, and training-readiness JSON shapes.
+2. Design a source-attributed readiness factor model.
+3. Add a readiness service that reports factors, source files, missing-data warnings, and a conservative status.
+4. Add `GET /readiness` or `GET /readiness/summary`.
+5. Add tests for source attribution, missing-data behavior, and no false precision.
+6. Do not parse FIT files yet.
 
 Reason:
 
-This gives the project a deployable backend base, ownership model, data traceability, and a working ingestion path based on the actual Garmin export structure.
+This gives the project a deployable backend base, ownership model, data traceability, a working ingestion path based on the actual Garmin export structure, first activity APIs, and deterministic analytics before adding readiness or LLM interpretation.
 
 Do not start with:
 
@@ -1010,7 +1092,7 @@ Do not start with:
 - Garmin OAuth
 - OpenAI integration
 - workout planning
-- detailed running analytics
 - detailed FIT parsing
+- client-facing recommendations
 
-Those depend on the backend foundation and the summarized JSON importer being stable first.
+Those depend on the backend foundation, summarized JSON importer, deterministic analytics, and readiness logic being stable first.
