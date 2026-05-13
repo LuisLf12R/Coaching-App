@@ -6,6 +6,7 @@ from zipfile import BadZipFile, ZipFile
 
 DI_CONNECT_PREFIX = "DI_CONNECT/"
 SUMMARIZED_ACTIVITIES_SUFFIX = "_summarizedActivities.json"
+TRAINING_READINESS_PREFIX = "DI_CONNECT/DI-Connect-Metrics/TrainingReadinessDTO_"
 
 
 class GarminExportInspectionError(ValueError):
@@ -22,6 +23,7 @@ class GarminExportInspection:
     top_level_folders: tuple[str, ...]
     di_connect_folders: tuple[str, ...]
     summarized_activity_files: tuple[str, ...]
+    training_readiness_files: tuple[str, ...]
 
     @property
     def has_di_connect(self) -> bool:
@@ -30,6 +32,10 @@ class GarminExportInspection:
     @property
     def summarized_activity_file_count(self) -> int:
         return len(self.summarized_activity_files)
+
+    @property
+    def training_readiness_file_count(self) -> int:
+        return len(self.training_readiness_files)
 
     def to_summary(self) -> dict[str, object]:
         return {
@@ -42,6 +48,8 @@ class GarminExportInspection:
             "di_connect_folders": list(self.di_connect_folders),
             "summarized_activity_files": list(self.summarized_activity_files),
             "summarized_activity_file_count": self.summarized_activity_file_count,
+            "training_readiness_files": list(self.training_readiness_files),
+            "training_readiness_file_count": self.training_readiness_file_count,
         }
 
 
@@ -79,6 +87,13 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
             and name.endswith(SUMMARIZED_ACTIVITIES_SUFFIX)
         )
     )
+    training_readiness_files = tuple(
+        sorted(
+            name
+            for name in json_files
+            if name.startswith(TRAINING_READINESS_PREFIX)
+        )
+    )
 
     return GarminExportInspection(
         source_path=export_path,
@@ -89,4 +104,5 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
         top_level_folders=top_level_folders,
         di_connect_folders=di_connect_folders,
         summarized_activity_files=summarized_activity_files,
+        training_readiness_files=training_readiness_files,
     )

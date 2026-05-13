@@ -633,7 +633,7 @@ Initial implementation status:
 
 ### Phase 5: Readiness Foundation
 
-Goal: create the readiness engine structure using available Garmin readiness, sleep, health, wellness, and load JSON without pretending FIT-level detail has been parsed.
+Goal: create the readiness engine structure without pretending recovery data exists before those Garmin JSON sources are imported.
 
 Build:
 
@@ -641,13 +641,26 @@ Build:
 - readiness status output
 - missing recovery-data warnings
 - placeholder-free scoring, no fake health inference
-- Garmin readiness source mapping
+- source attribution for contributing activity records
+- Garmin readiness, sleep, health, wellness, and load source mapping later
 
 Validation:
 
-- readiness output identifies which Garmin source files contributed each factor
+- readiness output identifies which source files contributed each available activity factor
 - missing sleep/HRV/stress/load data is explicit when unavailable
 - no false precision
+
+Initial implementation status:
+
+- activity-only readiness service created
+- coach-scoped `GET /readiness/summary` endpoint created
+- status output limited to `green`, `yellow`, or `red`
+- factors report source files and missing inputs
+- Garmin `TrainingReadinessDTO` parser and database import service created
+- `training_readiness_metrics` table created for daily Garmin readiness values
+- readiness now uses the latest imported Garmin readiness score and level when available
+- missing detailed sleep and health-status inputs remain explicit until those source files are imported
+- completed as the first Phase 5 slice on 2026-05-13
 
 ### Phase 6: Coach-Facing LLM Analysis
 
@@ -748,351 +761,19 @@ Concrete milestone:
 10. Expose API endpoints to query normalized activities and activity summaries. Completed.
 11. Add tests for database import, API responses, and activity summary responses. Completed.
 12. Add first deterministic activity analytics overview endpoint. Completed.
+13. Add first readiness foundation endpoint with explicit missing recovery-data warnings. Completed.
+14. Import Garmin `TrainingReadinessDTO` records and use the latest imported value in readiness. Completed.
 
-This milestone proves the backend architecture, modular ingestion path, imported activity API, and first deterministic analytics layer before parsing FIT files, adding richer readiness logic, or building UI.
+This milestone proves the backend architecture, modular ingestion path, imported activity API, first deterministic analytics layer, and first source-attributed readiness API before parsing FIT files, importing detailed health metrics, adding LLM analysis, or building UI.
 
 ## Open Questions
 
-1. Should the raw Garmin export ZIP live inside the project folder as a local ignored file, or should the project reference an external raw-data location?
-2. Should OpenAI be configured globally for the platform first, or should the schema support per-coach LLM provider settings from the beginning?
-3. Should the first normalized activity table store only stable fields from summarized activities, or include a JSON metadata column for extra Garmin-specific fields?
+1. Should OpenAI be configured globally for the platform first, or should the schema support per-coach LLM provider settings from the beginning?
+2. Which detailed recovery source should be imported next: sleep data, health status, acute training load, or UDS aggregator files?
+3. Should readiness summaries be persisted in `readiness_scores`, or should they stay computed on demand until recovery data is imported?
 
 ## Handoff
 
-Current status:
+Current implementation handoff is tracked in `PROJECT_STATUS.md`.
 
-- The product direction is a backend-first coaching data platform.
-- The first user is Luis acting as coach.
-- The first implementation lives inside `Garmin App/`.
-- The internal project name is `GarminAPICoach`.
-- `uv` has been installed locally through Homebrew.
-- The project is now connected to GitHub:
-  - repository: `https://github.com/LuisLf12R/Coaching-App.git`
-  - branch: `main`
-  - initial commit pushed: `e6651ad Initial backend scaffold`
-  - latest pushed feature before this handoff: `Add Garmin import service and activity APIs`
-- Initial backend scaffold has been created:
-  - `pyproject.toml`
-  - `README.md`
-  - `.gitignore`
-  - `src/garmin_api_coach/main.py`
-  - `src/garmin_api_coach/api/health.py`
-  - `tests/test_health.py`
-- Config and local/test auth foundation has been created:
-  - `src/garmin_api_coach/settings.py`
-  - `src/garmin_api_coach/auth/__init__.py`
-  - `src/garmin_api_coach/auth/schemas.py`
-  - `src/garmin_api_coach/auth/dependencies.py`
-  - `src/garmin_api_coach/api/me.py`
-  - `tests/test_settings.py`
-  - `tests/test_auth.py`
-- Health endpoint validation passed with `uv run pytest`.
-- Local server validation passed with `GET /health`.
-- Current test validation passed with `uv run pytest`: 26 tests passing.
-- Cleanliness validation passed:
-  - `git diff --check`
-  - `uv run pytest`
-  - `uv run alembic upgrade head --sql`
-- Local Postgres has been configured through Docker Compose:
-  - `docker-compose.yml`
-  - database: `garmin_api_coach_dev`
-  - user: `garmin_api_coach`
-  - local port: `5432`
-- SQLAlchemy and Alembic foundation has been created:
-  - `src/garmin_api_coach/db/base.py`
-  - `src/garmin_api_coach/db/session.py`
-  - `src/garmin_api_coach/db/models.py`
-  - `alembic.ini`
-  - `alembic/env.py`
-  - `alembic/versions/20260513_0001_initial_schema.py`
-- Initial database models have been created:
-  - coaches
-  - clients
-  - data_imports
-  - raw_records
-  - activity_type_mappings
-  - activities
-- Garmin summarized activity import service has been created:
-  - service module: `src/garmin_api_coach/imports/garmin_summarized_activities.py`
-  - requires an existing client id, tested with an explicit placeholder client
-  - creates a `data_import` row per import run
-  - creates one `raw_records` row per summarized Garmin activity
-  - upserts duplicate normalized `activities` by provider and source activity id
-  - stores parser/import counts in the data import summary
-- The local private Garmin export import path has been validated in a temporary test database:
-  - source: `data/raw/642bffa2-69d5-466c-9599-eb82c5e5124b_1.zip`
-  - summarized activity records imported: 3175
-  - raw records created: 3175
-  - normalized activities inserted: 3175
-- First coach-facing API endpoints around imported data have been created:
-  - `GET /clients`
-  - `POST /clients`
-  - `GET /activities`
-  - `GET /activity-summaries/by-type`
-- First deterministic analytics endpoint has been created:
-  - `GET /analytics/activity-overview`
-  - service module: `src/garmin_api_coach/analytics/activity_overview.py`
-  - router module: `src/garmin_api_coach/api/analytics.py`
-  - response schemas in `src/garmin_api_coach/api/schemas.py`
-  - router registered in `src/garmin_api_coach/main.py`
-  - API test coverage in `tests/test_activity_api.py`
-- The activity overview currently returns:
-  - total activity count
-  - first and last activity timestamps
-  - active day count
-  - active week count
-  - sport mix
-  - weekly activity buckets
-  - monthly activity buckets
-  - running summary
-  - strength summary
-  - missing-data warnings
-- API ownership is scoped through the current authenticated coach dependency.
-- JSON fields still use Postgres `JSONB` in the application model, with a SQLite variant only to support lightweight local tests without Docker.
-- Local raw Garmin exports should live in ignored `data/raw/`.
-- Docker was not available in the current shell, so the containerized Postgres service has not been started yet.
-- Real online migration validation with `uv run alembic upgrade head` is still pending until Docker is available.
-- The backend framework is FastAPI.
-- Dependency management is `uv`.
-- Auth should be shaped around provider-neutral OIDC/JWT claims with a local/test bypass.
-- Current local/test auth behavior:
-  - `GET /me` returns a development coach when local auth is allowed.
-  - development coach id: `Luis-dev-coach`
-  - development coach email: `luisrivglez@gmail.com`
-  - development coach display name: `Luis`
-  - production mode or disabled local bypass returns `401 Unauthorized`.
-- Config decisions:
-  - environments are `development`, `test`, and `production`
-  - `database_url` defaults to the local Docker Compose database `garmin_api_coach_dev`
-  - `local_auth_bypass_enabled` controls the temporary local/test auth bypass
-  - `is_local_auth_allowed()` prevents local bypass from working in production
-- Clerk is the first auth provider to evaluate when real coach login and frontend work begin.
-- Auth0 is the main fallback if API-first or enterprise auth needs become more important.
-- Garmin account authorization must stay separate from platform coach login.
-- The first development LLM provider is local Ollama with `phi4:14b-fp16`.
-- The first production LLM provider is OpenAI.
-- The current `Activities.csv` is preliminary and only supports monthly activity-count ingestion.
-- The full Garmin export has arrived as a ZIP with structured JSON and nested FIT files.
-- The first real importer should target `DI_CONNECT/DI-Connect-Fitness/*_summarizedActivities.json`.
-- The export contains 3175 summarized activity records.
-- The export contains 18597 uploaded FIT files inside nested ZIPs, but FIT parsing should come later.
-- Garmin ZIP structure inspector has been created:
-  - `src/garmin_api_coach/providers/__init__.py`
-  - `src/garmin_api_coach/providers/garmin/__init__.py`
-  - `src/garmin_api_coach/providers/garmin/export_inspector.py`
-  - `tests/test_garmin_export_inspector.py`
-- The inspector reads ZIP metadata only. It does not extract or persist private Garmin data.
-- Inspector output includes:
-  - total file entries
-  - JSON file count
-  - nested ZIP file count
-  - PNG file count
-  - top-level folders
-  - `DI_CONNECT` folders
-  - summarized activity JSON paths
-- Local Garmin export validation confirmed:
-  - 4 summarized activity JSON files
-  - 151 JSON files
-  - 7 nested ZIP files
-- Garmin summarized activities JSON adapter has been created:
-  - `src/garmin_api_coach/providers/garmin/summarized_activities.py`
-  - `tests/test_garmin_summarized_activities.py`
-- The summarized activity adapter is separate from the ZIP inspector and database import layer.
-- The adapter reads summarized activity JSON files discovered by the inspector or an explicit file list.
-- The adapter validates stable summarized activity fields:
-  - `activityId`
-  - `activityType`
-  - `sportType`
-  - `startTimeGmt`
-  - `startTimeLocal`
-  - `duration`
-  - `distance`
-  - `avgSpeed`
-  - `avgHr`
-  - `maxHr`
-  - `calories`
-  - `steps`
-  - `trainingEffectLabel`
-  - `activityTrainingLoad`
-- The adapter preserves:
-  - provider name
-  - parser version
-  - source file path inside the ZIP
-  - source activity ID
-  - selected Garmin-specific provider metadata for later mapping
-- The adapter reports:
-  - files parsed
-  - records seen
-  - records parsed
-  - records invalid
-  - validation issues
-  - activity types seen
-  - sport types seen
-  - unknown activity types
-  - unknown sport types
-- Local private Garmin export validation confirmed:
-  - 4 summarized activity JSON files
-  - 3175 summarized activity records seen
-  - 3175 summarized activity records parsed
-  - 0 invalid summarized activity records
-  - 0 unknown activity types
-  - 0 unknown sport types
-- `pydantic` is now declared as a direct dependency because provider schemas use it directly.
-- Current test validation passed with `uv run pytest`: 26 tests passing.
-
-Best next step:
-
-Build the readiness foundation from available Garmin readiness, wellness, sleep, health, and load JSON. Keep it source-attributed and warning-driven, with no fake recovery inference.
-
-Already created in the first build session:
-
-1. `uv` Python project setup inside `Garmin App/`.
-2. FastAPI app structure.
-3. Health endpoint.
-4. First health endpoint test.
-5. Basic README.
-6. `.gitignore`.
-7. GitHub repository connection and initial push.
-
-Already created in the second build session:
-
-1. Config module.
-2. Local/test auth dependency that injects a development coach.
-3. Protected `GET /me` endpoint to prove the dependency works.
-4. Tests for settings and local/test auth behavior.
-5. Scope note explaining why email is currently a plain string and when to add email validation.
-
-Already created in the third build session:
-
-1. Docker Compose Postgres service.
-2. SQLAlchemy and Alembic setup.
-3. Initial database models:
-   - coaches
-   - clients
-   - data_imports
-   - raw_records
-   - activity_type_mappings
-   - activities
-4. Local ignored raw-data folder:
-   - `data/raw/`
-5. Database setup tests.
-6. Cleanup check found no stale files, duplicated modules, or unused project files worth removing.
-7. Changes were committed and pushed to `origin/main`:
-   - `fc35e0c Add auth and database foundation`
-
-Already created in the fourth build session:
-
-1. Garmin provider package:
-   - `src/garmin_api_coach/providers/__init__.py`
-   - `src/garmin_api_coach/providers/garmin/__init__.py`
-2. Garmin ZIP structure inspector:
-   - `src/garmin_api_coach/providers/garmin/export_inspector.py`
-3. ZIP inspector tests:
-   - synthetic ZIP structure test
-   - missing file error test
-   - invalid ZIP error test
-   - local private Garmin export structure test, skipped if the raw ZIP is absent
-4. Validation:
-   - `uv run pytest tests/test_garmin_export_inspector.py`: 4 tests passing
-   - `uv run pytest`: 15 tests passing
-
-Already created in the fifth build session:
-
-1. Garmin summarized activity parser:
-   - `src/garmin_api_coach/providers/garmin/summarized_activities.py`
-2. Pydantic schema validation for stable summarized activity fields.
-3. Parsed activity result objects shaped for the next database import layer.
-4. Import summary objects with file counts, row counts, invalid records, and unknown type reporting.
-5. Tests for:
-   - synthetic wrapped Garmin export ZIP parsing
-   - explicit summarized activity file selection
-   - unsupported JSON structure errors
-   - optional private local ZIP validation for 3175 records
-6. Dependency metadata update:
-   - `pydantic` declared directly in `pyproject.toml`
-   - `uv.lock` refreshed
-7. Validation:
-   - `uv run pytest tests/test_garmin_summarized_activities.py`: 4 tests passing
-   - `uv run pytest`: 19 tests passing
-   - `git diff --check`: passing
-
-Already created in the sixth build session:
-
-1. Garmin summarized activities database importer:
-   - `src/garmin_api_coach/imports/garmin_summarized_activities.py`
-2. Import behavior:
-   - creates one `data_imports` row per ZIP import
-   - preserves one `raw_records` row per summarized Garmin activity
-   - writes normalized records into `activities`
-   - upserts duplicate activities by provider and source activity ID
-   - stores import counts in the data import summary
-3. First activity APIs:
-   - `GET /clients`
-   - `POST /clients`
-   - `GET /activities`
-   - `GET /activity-summaries/by-type`
-4. Tests for:
-   - client API behavior
-   - activity API behavior
-   - activity summary API behavior
-   - database import counts
-   - raw record preservation
-   - normalized activity writes
-   - duplicate import handling
-   - optional private local ZIP validation for 3175 imported records
-5. Validation:
-   - `uv run pytest`: 25 tests passing
-   - `git diff --check`: passing
-
-Already created in the seventh build session:
-
-1. Deterministic activity analytics service:
-   - `src/garmin_api_coach/analytics/__init__.py`
-   - `src/garmin_api_coach/analytics/activity_overview.py`
-2. Analytics API endpoint:
-   - `GET /analytics/activity-overview`
-3. Analytics response schemas:
-   - `ActivityPeriodSummary`
-   - `ActivityFocusSummaryRead`
-   - `ActivityOverviewRead`
-4. Current analytics output:
-   - activity count
-   - first and last activity timestamps
-   - active days
-   - active weeks
-   - sport mix
-   - weekly activity counts
-   - monthly activity counts
-   - running summary
-   - strength summary
-   - missing-data warnings
-5. Tests:
-   - deterministic activity overview API test added to `tests/test_activity_api.py`
-6. Validation:
-   - `uv run pytest`: 26 tests passing
-   - `git diff --check`: passing
-
-Next build session should create only after checkpoint approval:
-
-1. Inspect the Garmin export wellness, metrics, aggregator, and training-readiness JSON shapes.
-2. Design a source-attributed readiness factor model.
-3. Add a readiness service that reports factors, source files, missing-data warnings, and a conservative status.
-4. Add `GET /readiness` or `GET /readiness/summary`.
-5. Add tests for source attribution, missing-data behavior, and no false precision.
-6. Do not parse FIT files yet.
-
-Reason:
-
-This gives the project a deployable backend base, ownership model, data traceability, a working ingestion path based on the actual Garmin export structure, first activity APIs, and deterministic analytics before adding readiness or LLM interpretation.
-
-Do not start with:
-
-- polished frontend
-- client login
-- Garmin OAuth
-- OpenAI integration
-- workout planning
-- detailed FIT parsing
-- client-facing recommendations
-
-Those depend on the backend foundation, summarized JSON importer, deterministic analytics, and readiness logic being stable first.
+Keep this scope file focused on product direction, architecture, phase decisions, and open questions. Use `PROJECT_STATUS.md` for current code status, validation results, and next-step handoff notes.

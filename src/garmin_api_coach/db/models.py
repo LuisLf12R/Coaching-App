@@ -1,8 +1,8 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -60,6 +60,7 @@ class Client(Base):
     coach: Mapped["Coach"] = relationship(back_populates="clients")
     imports: Mapped[list["DataImport"]] = relationship(back_populates="client")
     activities: Mapped[list["Activity"]] = relationship(back_populates="client")
+    training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="client")
 
 
 class DataImport(Base):
@@ -78,6 +79,7 @@ class DataImport(Base):
     client: Mapped["Client"] = relationship(back_populates="imports")
     raw_records: Mapped[list["RawRecord"]] = relationship(back_populates="data_import")
     activities: Mapped[list["Activity"]] = relationship(back_populates="data_import")
+    training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="data_import")
 
 
 class RawRecord(Base):
@@ -146,3 +148,46 @@ class Activity(Base):
 
     client: Mapped["Client"] = relationship(back_populates="activities")
     data_import: Mapped["DataImport"] = relationship(back_populates="activities")
+
+
+class TrainingReadinessMetric(Base):
+    __tablename__ = "training_readiness_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "client_id",
+            "calendar_date",
+            name="uq_training_readiness_metrics_provider_client_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), nullable=False, index=True)
+    data_import_id: Mapped[str] = mapped_column(ForeignKey("data_imports.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    calendar_date: Mapped[date] = mapped_column(Date(), nullable=False, index=True)
+    timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    timestamp_local: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    level: Mapped[str] = mapped_column(String(100), nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    feedback_short: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    feedback_long: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    sleep_score: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sleep_score_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recovery_time: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    recovery_time_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    acwr_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    stress_history_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    hrv_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    sleep_history_factor_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    valid_sleep: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
+    input_context: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    hrv_weekly_average: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    acute_load: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    client: Mapped["Client"] = relationship(back_populates="training_readiness_metrics")
+    data_import: Mapped["DataImport"] = relationship(back_populates="training_readiness_metrics")

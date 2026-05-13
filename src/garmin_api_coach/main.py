@@ -5,6 +5,7 @@ from garmin_api_coach.api.activities import router as activities_router
 from garmin_api_coach.api.clients import router as clients_router
 from garmin_api_coach.api.health import router as health_router
 from garmin_api_coach.api.me import router as me_router
+from garmin_api_coach.api.readiness import router as readiness_router
 from garmin_api_coach.settings import get_settings
 
 
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
     app.include_router(clients_router)
     app.include_router(activities_router)
     app.include_router(analytics_router)
+    app.include_router(readiness_router)
     return app
 
 

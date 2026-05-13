@@ -40,6 +40,17 @@ Health check:
 GET /health
 ```
 
+Current coach-side endpoints include:
+
+```text
+GET /clients
+POST /clients
+GET /activities
+GET /activity-summaries/by-type
+GET /analytics/activity-overview
+GET /readiness/summary
+```
+
 ## Local Raw Data
 
 Keep sensitive source exports in:

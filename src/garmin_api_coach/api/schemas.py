@@ -91,3 +91,19 @@ class ActivityOverviewRead(BaseModel):
     running_summary: ActivityFocusSummaryRead
     strength_summary: ActivityFocusSummaryRead
     missing_data_warnings: list[str]
+
+
+class ReadinessFactorRead(BaseModel):
+    name: str
+    status: str
+    summary: str
+    source_files: list[str]
+    missing_inputs: list[str]
+
+
+class ReadinessSummaryRead(BaseModel):
+    client_id: Optional[str]
+    status: str
+    generated_at: datetime
+    factors: list[ReadinessFactorRead]
+    warnings: list[str]
