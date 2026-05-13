@@ -10,6 +10,7 @@ TRAINING_READINESS_PREFIX = "DI_CONNECT/DI-Connect-Metrics/TrainingReadinessDTO_
 SLEEP_DATA_SUFFIX = "_sleepData.json"
 HEALTH_STATUS_DATA_SUFFIX = "_healthStatusData.json"
 ACUTE_TRAINING_LOAD_PREFIX = "DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_"
+UDS_AGGREGATOR_PREFIX = "DI_CONNECT/DI-Connect-Aggregator/UDSFile_"
 
 
 class GarminExportInspectionError(ValueError):
@@ -30,6 +31,7 @@ class GarminExportInspection:
     sleep_data_files: tuple[str, ...]
     health_status_files: tuple[str, ...]
     acute_training_load_files: tuple[str, ...]
+    uds_aggregator_files: tuple[str, ...]
 
     @property
     def has_di_connect(self) -> bool:
@@ -55,6 +57,10 @@ class GarminExportInspection:
     def acute_training_load_file_count(self) -> int:
         return len(self.acute_training_load_files)
 
+    @property
+    def uds_aggregator_file_count(self) -> int:
+        return len(self.uds_aggregator_files)
+
     def to_summary(self) -> dict[str, object]:
         return {
             "source_path": str(self.source_path),
@@ -74,6 +80,8 @@ class GarminExportInspection:
             "health_status_file_count": self.health_status_file_count,
             "acute_training_load_files": list(self.acute_training_load_files),
             "acute_training_load_file_count": self.acute_training_load_file_count,
+            "uds_aggregator_files": list(self.uds_aggregator_files),
+            "uds_aggregator_file_count": self.uds_aggregator_file_count,
         }
 
 
@@ -141,6 +149,13 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
             if name.startswith(ACUTE_TRAINING_LOAD_PREFIX)
         )
     )
+    uds_aggregator_files = tuple(
+        sorted(
+            name
+            for name in json_files
+            if name.startswith(UDS_AGGREGATOR_PREFIX)
+        )
+    )
 
     return GarminExportInspection(
         source_path=export_path,
@@ -155,4 +170,5 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
         sleep_data_files=sleep_data_files,
         health_status_files=health_status_files,
         acute_training_load_files=acute_training_load_files,
+        uds_aggregator_files=uds_aggregator_files,
     )

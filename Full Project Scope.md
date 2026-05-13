@@ -168,6 +168,17 @@ Useful wellness and metrics sources observed:
 - `DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_*.json`
 - `DI_CONNECT/DI-Connect-Metrics/TrainingHistory_*.json`
 
+Observed UDS aggregator shape:
+
+- 19 UDS files
+- 1732 daily records seen
+- 984 daily records with useful wellness signals
+- daily Body Battery stats
+- all-day stress aggregates
+- resting heart rate, steps, intensity minutes, respiration, and Pulse Ox values
+
+UDS records before wearable wellness data can be calorie-only. The normalized UDS importer should keep the source traceable but only create daily wellness metrics when observed readiness-relevant signals are present.
+
 The ingestion system should inspect ZIP structure before assuming a fixed schema. The first structure-discovery pass has been completed manually, but the product should still include a reusable ZIP inspection/import summary step.
 
 ## Scope Decision
@@ -643,7 +654,7 @@ Build:
 - placeholder-free scoring, no fake health inference
 - source attribution for contributing activity records
 - Garmin readiness and sleep source mapping
-- Garmin health, wellness, and load source mapping later
+- Garmin health, wellness, and load source mapping
 
 Validation:
 
@@ -663,8 +674,16 @@ Initial implementation status:
 - Garmin sleep data parser and database import service created
 - `sleep_metrics` table created for daily Garmin sleep values
 - readiness now uses the latest imported Garmin sleep score when available
-- missing health-status inputs remain explicit until those source files are imported
-- completed as the first Phase 5 slices on 2026-05-13
+- Garmin health-status data parser and database import service created
+- `health_status_metrics` table created for daily Garmin health-status values
+- readiness now uses the latest imported Garmin health-status metrics when available
+- Garmin acute training load parser and database import service created
+- `acute_training_load_metrics` table created for daily Garmin acute load values
+- readiness now uses the latest imported Garmin acute load values and ACWR status when available
+- Garmin UDS daily wellness parser and database import service created
+- `daily_wellness_metrics` table created for daily Garmin Body Battery, stress, resting heart rate, steps, respiration, intensity minutes, and Pulse Ox values
+- readiness now uses the latest imported Garmin daily wellness Body Battery and stress values when available
+- completed as Phase 5 slices on 2026-05-13
 
 ### Phase 6: Coach-Facing LLM Analysis
 
@@ -768,14 +787,16 @@ Concrete milestone:
 13. Add first readiness foundation endpoint with explicit missing recovery-data warnings. Completed.
 14. Import Garmin `TrainingReadinessDTO` records and use the latest imported value in readiness. Completed.
 15. Import Garmin sleep records and use the latest imported sleep score in readiness. Completed.
+16. Import Garmin health-status records and use the latest imported health-status values in readiness. Completed.
+17. Import Garmin acute training load records and use the latest imported load values in readiness. Completed.
+18. Inspect Garmin UDS aggregator files and import daily wellness Body Battery and stress values into readiness. Completed.
 
 This milestone proves the backend architecture, modular ingestion path, imported activity API, first deterministic analytics layer, and first source-attributed readiness API before parsing FIT files, importing broader health metrics, adding LLM analysis, or building UI.
 
 ## Open Questions
 
 1. Should OpenAI be configured globally for the platform first, or should the schema support per-coach LLM provider settings from the beginning?
-2. Which detailed recovery source should be imported next: health status, acute training load, or UDS aggregator files?
-3. Should readiness summaries be persisted in `readiness_scores`, or should they stay computed on demand until recovery data is imported?
+2. Should readiness summaries be persisted in `readiness_scores`, or should they stay computed on demand until LLM analysis needs stored snapshots?
 
 ## Handoff
 

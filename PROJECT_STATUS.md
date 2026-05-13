@@ -4,7 +4,7 @@ Date: 2026-05-13
 
 ## Current Status
 
-`GarminAPICoach` is a backend-first FastAPI coaching data platform. The current backend can inspect a Garmin export ZIP, parse summarized Garmin activity JSON, import normalized activities, import Garmin training readiness metrics, import Garmin sleep metrics, import Garmin health-status metrics, import Garmin acute training load metrics, expose coach-scoped activity APIs, return deterministic activity analytics, and return a source-attributed readiness summary.
+`GarminAPICoach` is a backend-first FastAPI coaching data platform. The current backend can inspect a Garmin export ZIP, parse summarized Garmin activity JSON, import normalized activities, import Garmin training readiness metrics, import Garmin sleep metrics, import Garmin health-status metrics, import Garmin acute training load metrics, import Garmin UDS daily wellness metrics, expose coach-scoped activity APIs, return deterministic activity analytics, and return a source-attributed readiness summary.
 
 The first real data source is the private Garmin export ZIP in ignored local raw data:
 
@@ -27,6 +27,10 @@ The ZIP has been validated locally with:
 - 2911 Garmin acute training load records seen
 - 2911 Garmin acute training load records parsed
 - 975 unique daily acute training load metrics stored after upsert
+- 19 Garmin UDS aggregator files inspected
+- 1732 Garmin UDS daily records seen
+- 984 Garmin UDS daily records parsed with wellness signals
+- 984 unique daily wellness metrics stored after upsert
 
 ## Built
 
@@ -50,6 +54,9 @@ The ZIP has been validated locally with:
 - Garmin acute training load parser.
 - Garmin acute training load database import service.
 - `acute_training_load_metrics` database table and migration.
+- Garmin UDS daily wellness parser.
+- Garmin UDS daily wellness database import service.
+- `daily_wellness_metrics` database table and migration.
 - Client APIs:
   - `GET /clients`
   - `POST /clients`
@@ -65,7 +72,7 @@ The ZIP has been validated locally with:
 
 The current readiness endpoint is intentionally conservative.
 
-It uses normalized activities, the latest imported Garmin TrainingReadinessDTO record when available, the latest imported Garmin sleep record when available, the latest imported Garmin health-status record when available, and the latest imported Garmin acute training load record when available.
+It uses normalized activities, the latest imported Garmin TrainingReadinessDTO record when available, the latest imported Garmin sleep record when available, the latest imported Garmin health-status record when available, the latest imported Garmin acute training load record when available, and the latest imported Garmin UDS daily wellness record when available.
 
 Current readiness factors:
 
@@ -75,6 +82,7 @@ Current readiness factors:
 - `acute_training_load`
 - `sleep_detail`
 - `health_status_detail`
+- `daily_wellness`
 - `recovery_data`
 - `data_quality`
 
@@ -84,7 +92,9 @@ Current readiness statuses:
 - `yellow`
 - `red`
 
-With no recovery or load data imported, the overall readiness status will usually be `yellow`. With imported training readiness, acute training load, sleep data, or health-status data, the latest Garmin scores and statuses can move contributing factors to `green`, `yellow`, or `red`.
+With no recovery or load data imported, the overall readiness status will usually be `yellow`. With imported training readiness, acute training load, sleep data, health-status data, or UDS daily wellness data, the latest Garmin scores and statuses can move contributing factors to `green`, `yellow`, or `red`.
+
+The UDS daily wellness importer is intentionally narrow. It normalizes observed daily Body Battery, all-day stress, resting heart rate, steps, respiration, intensity minutes, and Pulse Ox values. It skips older calorie-only UDS records that do not contain useful wellness signals.
 
 ## Key Files
 
@@ -97,11 +107,13 @@ With no recovery or load data imported, the overall readiness status will usuall
 - `src/garmin_api_coach/providers/garmin/sleep_data.py`
 - `src/garmin_api_coach/providers/garmin/health_status.py`
 - `src/garmin_api_coach/providers/garmin/acute_training_load.py`
+- `src/garmin_api_coach/providers/garmin/daily_wellness.py`
 - `src/garmin_api_coach/imports/garmin_summarized_activities.py`
 - `src/garmin_api_coach/imports/garmin_training_readiness.py`
 - `src/garmin_api_coach/imports/garmin_sleep_data.py`
 - `src/garmin_api_coach/imports/garmin_health_status.py`
 - `src/garmin_api_coach/imports/garmin_acute_training_load.py`
+- `src/garmin_api_coach/imports/garmin_daily_wellness.py`
 - `src/garmin_api_coach/analytics/activity_overview.py`
 - `src/garmin_api_coach/analytics/readiness.py`
 - `src/garmin_api_coach/api/activities.py`
@@ -115,6 +127,8 @@ With no recovery or load data imported, the overall readiness status will usuall
 - `tests/test_garmin_health_status_import_service.py`
 - `tests/test_garmin_acute_training_load.py`
 - `tests/test_garmin_acute_training_load_import_service.py`
+- `tests/test_garmin_daily_wellness.py`
+- `tests/test_garmin_daily_wellness_import_service.py`
 - `tests/test_readiness_api.py`
 
 ## Validation
@@ -128,7 +142,7 @@ uv run pytest
 Result:
 
 ```text
-60 passed
+68 passed
 ```
 
 The first sandboxed test run failed because `uv` could not access `/Users/luisr/.cache/uv` from the restricted sandbox. The tests passed when rerun with approved cache access.
@@ -144,14 +158,14 @@ The first sandboxed test run failed because `uv` could not access `/Users/luisr/
 
 ## Next Step
 
-Import the next recovery or load-related Garmin JSON source only after checking whether it adds information not already covered by TrainingReadinessDTO, detailed sleep, health-status, and acute training load.
+Start the first coach-facing LLM analysis slice only after keeping deterministic readiness as the source of truth.
 
 Recommended order:
 
-1. Inspect UDS aggregator shapes in more detail.
-2. Choose one small source only if it adds information not already captured by existing normalized tables.
-3. Add a normalized recovery/readiness data model only for fields that are actually observed.
-4. Extend `GET /readiness/summary` with source-attributed recovery or load factors.
-5. Add tests proving missing inputs remain explicit.
+1. Define the provider-neutral LLM interface.
+2. Build an analysis packet from deterministic activity overview and readiness output.
+3. Add a mock LLM provider test before calling a real provider.
+4. Store prompt version, model/provider, input window, computed metrics used, output, and timestamp.
+5. Keep generated coaching analysis coach-facing only.
 
-Do not add LLM analysis until deterministic readiness has enough recovery and load context to produce stable source-grounded summaries.
+Do not let LLM output replace deterministic metrics or readiness factors.

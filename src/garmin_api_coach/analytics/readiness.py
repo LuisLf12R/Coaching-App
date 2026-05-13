@@ -10,6 +10,7 @@ from garmin_api_coach.db.models import (
     Activity,
     AcuteTrainingLoadMetric,
     Client,
+    DailyWellnessMetric,
     HealthStatusMetric,
     SleepMetric,
     TrainingReadinessMetric,
@@ -53,6 +54,7 @@ def build_readiness_summary(db: Session, *, coach_id: str, client_id: Optional[s
     latest_sleep = _latest_sleep(db, coach_id=coach_id, client_id=client_id)
     latest_health_status = _latest_health_status(db, coach_id=coach_id, client_id=client_id)
     latest_acute_training_load = _latest_acute_training_load(db, coach_id=coach_id, client_id=client_id)
+    latest_daily_wellness = _latest_daily_wellness(db, coach_id=coach_id, client_id=client_id)
 
     factors = [
         _activity_history_factor(overview.activity_count, activity_source_files),
@@ -61,7 +63,14 @@ def build_readiness_summary(db: Session, *, coach_id: str, client_id: Optional[s
         _acute_training_load_factor(latest_acute_training_load),
         _sleep_detail_factor(latest_sleep),
         _health_status_factor(latest_health_status),
-        _recovery_data_factor(latest_training_readiness, latest_sleep, latest_health_status, latest_acute_training_load),
+        _daily_wellness_factor(latest_daily_wellness),
+        _recovery_data_factor(
+            latest_training_readiness,
+            latest_sleep,
+            latest_health_status,
+            latest_acute_training_load,
+            latest_daily_wellness,
+        ),
         _data_quality_factor(overview.missing_data_warnings),
     ]
     warnings = _warnings(factors, overview.missing_data_warnings)
@@ -143,6 +152,23 @@ def _latest_acute_training_load(
     if client_id is not None:
         query = query.where(AcuteTrainingLoadMetric.client_id == client_id)
     query = query.order_by(AcuteTrainingLoadMetric.calendar_date.desc(), AcuteTrainingLoadMetric.created_at.desc())
+    return db.scalar(query.limit(1))
+
+
+def _latest_daily_wellness(
+    db: Session,
+    *,
+    coach_id: str,
+    client_id: Optional[str],
+) -> Optional[DailyWellnessMetric]:
+    query = (
+        select(DailyWellnessMetric)
+        .join(Client, DailyWellnessMetric.client_id == Client.id)
+        .where(Client.coach_id == coach_id)
+    )
+    if client_id is not None:
+        query = query.where(DailyWellnessMetric.client_id == client_id)
+    query = query.order_by(DailyWellnessMetric.calendar_date.desc(), DailyWellnessMetric.created_at.desc())
     return db.scalar(query.limit(1))
 
 
@@ -307,11 +333,49 @@ def _health_status_factor(metric: Optional[HealthStatusMetric]) -> ReadinessFact
     )
 
 
+def _daily_wellness_factor(metric: Optional[DailyWellnessMetric]) -> ReadinessFactor:
+    if metric is None:
+        return ReadinessFactor(
+            name="daily_wellness",
+            status="yellow",
+            summary="Garmin UDS daily wellness data has not been imported yet.",
+            missing_inputs=["body_battery", "stress"],
+        )
+
+    summary_parts = []
+    body_battery_value = _body_battery_value(metric)
+    if body_battery_value is not None:
+        summary_parts.append(f"Body Battery {body_battery_value}")
+    if metric.average_stress_level is not None:
+        summary_parts.append(f"average stress {metric.average_stress_level}")
+    if metric.resting_heart_rate is not None:
+        summary_parts.append(f"resting heart rate {metric.resting_heart_rate}")
+
+    if summary_parts:
+        summary = (
+            f"Latest Garmin daily wellness record on {metric.calendar_date.isoformat()} includes "
+            f"{', '.join(summary_parts)}."
+        )
+    else:
+        summary = (
+            f"Latest Garmin daily wellness record is available for {metric.calendar_date.isoformat()}, "
+            "but Body Battery and stress values were not present."
+        )
+
+    return ReadinessFactor(
+        name="daily_wellness",
+        status=_status_from_daily_wellness(metric),
+        summary=summary,
+        source_files=[metric.source_file],
+    )
+
+
 def _recovery_data_factor(
     training_readiness: Optional[TrainingReadinessMetric],
     sleep: Optional[SleepMetric],
     health_status: Optional[HealthStatusMetric],
     acute_training_load: Optional[AcuteTrainingLoadMetric],
+    daily_wellness: Optional[DailyWellnessMetric],
 ) -> ReadinessFactor:
     source_files = []
     missing_inputs = []
@@ -331,8 +395,18 @@ def _recovery_data_factor(
         source_files.append(acute_training_load.source_file)
     else:
         missing_inputs.append("acute_training_load")
+    if daily_wellness is not None:
+        source_files.append(daily_wellness.source_file)
+    else:
+        missing_inputs.extend(["stress", "body_battery"])
 
-    if training_readiness is not None or sleep is not None or health_status is not None or acute_training_load is not None:
+    if (
+        training_readiness is not None
+        or sleep is not None
+        or health_status is not None
+        or acute_training_load is not None
+        or daily_wellness is not None
+    ):
         return ReadinessFactor(
             name="recovery_data",
             status="green",
@@ -420,6 +494,42 @@ def _status_from_health_status(metric: HealthStatusMetric) -> str:
     return "green"
 
 
+def _status_from_daily_wellness(metric: DailyWellnessMetric) -> str:
+    body_battery_value = _body_battery_value(metric)
+    body_battery_status = "yellow"
+    if body_battery_value is not None:
+        body_battery_status = _status_from_body_battery(body_battery_value)
+
+    stress_status = "yellow"
+    if metric.average_stress_level is not None:
+        if metric.average_stress_level >= 60:
+            stress_status = "red"
+        elif metric.average_stress_level >= 40:
+            stress_status = "yellow"
+        else:
+            stress_status = "green"
+
+    if "red" in {body_battery_status, stress_status}:
+        return "red"
+    if "yellow" in {body_battery_status, stress_status}:
+        return "yellow"
+    return "green"
+
+
+def _body_battery_value(metric: DailyWellnessMetric) -> Optional[int]:
+    if metric.body_battery_most_recent is not None:
+        return metric.body_battery_most_recent
+    return metric.body_battery_end_of_day
+
+
+def _status_from_body_battery(value: int) -> str:
+    if value < 25:
+        return "red"
+    if value < 50:
+        return "yellow"
+    return "green"
+
+
 def _source_files(activities: list[Activity]) -> list[str]:
     return sorted({activity.source_file for activity in activities if activity.source_file})
 
@@ -441,4 +551,6 @@ def _warnings(factors: list[ReadinessFactor], activity_warnings: list[str]) -> l
             warnings.append("Detailed health-status records have not been imported yet.")
         if "acute_training_load" in missing_inputs:
             warnings.append("Garmin acute training load records have not been imported yet.")
+        if "stress" in missing_inputs or "body_battery" in missing_inputs:
+            warnings.append("Garmin UDS daily wellness records have not been imported yet.")
     return warnings

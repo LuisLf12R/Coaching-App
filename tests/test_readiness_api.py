@@ -13,6 +13,7 @@ from garmin_api_coach.db.models import (
     AcuteTrainingLoadMetric,
     Client,
     Coach,
+    DailyWellnessMetric,
     DataImport,
     HealthStatusMetric,
     SleepMetric,
@@ -61,6 +62,8 @@ def test_readiness_summary_is_activity_only_and_conservative() -> None:
     assert factors["sleep_detail"]["missing_inputs"] == ["sleep_detail"]
     assert factors["health_status_detail"]["status"] == "yellow"
     assert factors["health_status_detail"]["missing_inputs"] == ["health_status_detail"]
+    assert factors["daily_wellness"]["status"] == "yellow"
+    assert factors["daily_wellness"]["missing_inputs"] == ["body_battery", "stress"]
     assert factors["recovery_data"]["status"] == "yellow"
     assert factors["recovery_data"]["missing_inputs"] == [
         "sleep",
@@ -128,6 +131,8 @@ def test_readiness_summary_uses_latest_training_readiness_metric() -> None:
         "sleep_detail",
         "health_status_detail",
         "acute_training_load",
+        "stress",
+        "body_battery",
     ]
 
 
@@ -168,6 +173,8 @@ def test_readiness_summary_uses_latest_sleep_metric() -> None:
         "training_readiness",
         "health_status_detail",
         "acute_training_load",
+        "stress",
+        "body_battery",
     ]
 
 
@@ -210,6 +217,8 @@ def test_readiness_summary_uses_latest_health_status_metric() -> None:
         "training_readiness",
         "sleep_detail",
         "acute_training_load",
+        "stress",
+        "body_battery",
     ]
 
 
@@ -253,6 +262,52 @@ def test_readiness_summary_uses_latest_acute_training_load_metric() -> None:
         "training_readiness",
         "sleep_detail",
         "health_status_detail",
+        "stress",
+        "body_battery",
+    ]
+
+
+def test_readiness_summary_uses_latest_daily_wellness_metric() -> None:
+    api, db = _test_client()
+    client = _seed_running_history(db)
+    data_import = db.scalar(select(DataImport).where(DataImport.client_id == client.id))
+    assert data_import is not None
+    db.add(
+        DailyWellnessMetric(
+            client_id=client.id,
+            data_import_id=data_import.id,
+            provider="garmin",
+            source_file="DI_CONNECT/DI-Connect-Aggregator/UDSFile_2026-02-02_2026-05-13.json",
+            source_record_id="2026-05-12",
+            calendar_date=datetime(2026, 5, 12, tzinfo=timezone.utc).date(),
+            total_steps=9533,
+            resting_heart_rate=57,
+            average_stress_level=31,
+            max_stress_level=91,
+            body_battery_most_recent=51,
+            body_battery_start_of_day=28,
+        )
+    )
+    db.commit()
+
+    response = api.get("/readiness/summary", params={"client_id": client.id})
+
+    assert response.status_code == 200
+    payload = response.json()
+    factors = {factor["name"]: factor for factor in payload["factors"]}
+
+    assert factors["daily_wellness"]["status"] == "green"
+    assert factors["daily_wellness"]["source_files"] == [
+        "DI_CONNECT/DI-Connect-Aggregator/UDSFile_2026-02-02_2026-05-13.json"
+    ]
+    assert "Body Battery 51" in factors["daily_wellness"]["summary"]
+    assert "average stress 31" in factors["daily_wellness"]["summary"]
+    assert factors["recovery_data"]["status"] == "green"
+    assert factors["recovery_data"]["missing_inputs"] == [
+        "training_readiness",
+        "sleep_detail",
+        "health_status_detail",
+        "acute_training_load",
     ]
 
 

@@ -64,6 +64,7 @@ class Client(Base):
     sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="client")
     health_status_metrics: Mapped[list["HealthStatusMetric"]] = relationship(back_populates="client")
     acute_training_load_metrics: Mapped[list["AcuteTrainingLoadMetric"]] = relationship(back_populates="client")
+    daily_wellness_metrics: Mapped[list["DailyWellnessMetric"]] = relationship(back_populates="client")
 
 
 class DataImport(Base):
@@ -86,6 +87,7 @@ class DataImport(Base):
     sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="data_import")
     health_status_metrics: Mapped[list["HealthStatusMetric"]] = relationship(back_populates="data_import")
     acute_training_load_metrics: Mapped[list["AcuteTrainingLoadMetric"]] = relationship(back_populates="data_import")
+    daily_wellness_metrics: Mapped[list["DailyWellnessMetric"]] = relationship(back_populates="data_import")
 
 
 class RawRecord(Base):
@@ -316,3 +318,52 @@ class AcuteTrainingLoadMetric(Base):
 
     client: Mapped["Client"] = relationship(back_populates="acute_training_load_metrics")
     data_import: Mapped["DataImport"] = relationship(back_populates="acute_training_load_metrics")
+
+
+class DailyWellnessMetric(Base):
+    __tablename__ = "daily_wellness_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "client_id",
+            "calendar_date",
+            name="uq_daily_wellness_metrics_provider_client_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), nullable=False, index=True)
+    data_import_id: Mapped[str] = mapped_column(ForeignKey("data_imports.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    calendar_date: Mapped[date] = mapped_column(Date(), nullable=False, index=True)
+    total_steps: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    daily_step_goal: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    wellness_distance_meters: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    resting_heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    current_day_resting_heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    min_heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_heart_rate: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    moderate_intensity_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    vigorous_intensity_minutes: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    average_stress_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_stress_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    stress_duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    rest_duration_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_charged: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_drained: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_highest: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_lowest: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_most_recent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_start_of_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    body_battery_end_of_day: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    average_waking_respiration: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    average_spo2: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    lowest_spo2: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    latest_spo2: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    client: Mapped["Client"] = relationship(back_populates="daily_wellness_metrics")
+    data_import: Mapped["DataImport"] = relationship(back_populates="daily_wellness_metrics")

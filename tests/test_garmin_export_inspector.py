@@ -22,16 +22,18 @@ def test_inspector_finds_garmin_export_structure(tmp_path: Path) -> None:
         archive.writestr("DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_20260217_20260528_116034249.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Wellness/2026_sleepData.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Wellness/2026_healthStatusData.json", "[]")
+        archive.writestr("DI_CONNECT/DI-Connect-Aggregator/UDSFile_2026-02-02_2026-05-13.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Uploaded-Files/UploadedFiles_0-_Part1.zip", b"")
         archive.writestr("DI_CONNECT/DI-Connect-Device/device.png", b"")
 
     inspection = inspect_garmin_export_zip(export_zip)
 
-    assert inspection.total_entries == 9
+    assert inspection.total_entries == 10
     assert inspection.has_di_connect is True
     assert inspection.summarized_activity_file_count == 2
     assert inspection.training_readiness_file_count == 1
     assert inspection.acute_training_load_file_count == 1
+    assert inspection.uds_aggregator_file_count == 1
     assert inspection.sleep_data_file_count == 1
     assert inspection.health_status_file_count == 1
     assert inspection.summarized_activity_files == (
@@ -69,3 +71,4 @@ def test_local_garmin_export_has_expected_summarized_activity_files() -> None:
     assert inspection.acute_training_load_file_count == 10
     assert inspection.sleep_data_file_count == 10
     assert inspection.health_status_file_count == 3
+    assert inspection.uds_aggregator_file_count == 19
