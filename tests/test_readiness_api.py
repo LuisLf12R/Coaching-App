@@ -8,7 +8,16 @@ from sqlalchemy.pool import StaticPool
 
 from garmin_api_coach.db import models  # noqa: F401
 from garmin_api_coach.db.base import Base
-from garmin_api_coach.db.models import Activity, Client, Coach, DataImport, SleepMetric, TrainingReadinessMetric
+from garmin_api_coach.db.models import (
+    Activity,
+    AcuteTrainingLoadMetric,
+    Client,
+    Coach,
+    DataImport,
+    HealthStatusMetric,
+    SleepMetric,
+    TrainingReadinessMetric,
+)
 from garmin_api_coach.db.session import get_db_session
 from garmin_api_coach.main import create_app
 
@@ -50,6 +59,8 @@ def test_readiness_summary_is_activity_only_and_conservative() -> None:
     assert factors["running_consistency"]["status"] == "green"
     assert factors["sleep_detail"]["status"] == "yellow"
     assert factors["sleep_detail"]["missing_inputs"] == ["sleep_detail"]
+    assert factors["health_status_detail"]["status"] == "yellow"
+    assert factors["health_status_detail"]["missing_inputs"] == ["health_status_detail"]
     assert factors["recovery_data"]["status"] == "yellow"
     assert factors["recovery_data"]["missing_inputs"] == [
         "sleep",
@@ -58,6 +69,7 @@ def test_readiness_summary_is_activity_only_and_conservative() -> None:
         "stress",
         "body_battery",
         "training_readiness",
+        "acute_training_load",
     ]
     assert "Recovery inputs are missing" in payload["warnings"][-1]
 
@@ -112,7 +124,11 @@ def test_readiness_summary_uses_latest_training_readiness_metric() -> None:
     ]
     assert "score 36" in factors["training_readiness"]["summary"]
     assert factors["recovery_data"]["status"] == "green"
-    assert factors["recovery_data"]["missing_inputs"] == ["sleep_detail", "health_status_detail"]
+    assert factors["recovery_data"]["missing_inputs"] == [
+        "sleep_detail",
+        "health_status_detail",
+        "acute_training_load",
+    ]
 
 
 def test_readiness_summary_uses_latest_sleep_metric() -> None:
@@ -148,7 +164,96 @@ def test_readiness_summary_uses_latest_sleep_metric() -> None:
     ]
     assert "sleep score is 84" in factors["sleep_detail"]["summary"]
     assert factors["recovery_data"]["status"] == "green"
-    assert factors["recovery_data"]["missing_inputs"] == ["training_readiness", "health_status_detail"]
+    assert factors["recovery_data"]["missing_inputs"] == [
+        "training_readiness",
+        "health_status_detail",
+        "acute_training_load",
+    ]
+
+
+def test_readiness_summary_uses_latest_health_status_metric() -> None:
+    api, db = _test_client()
+    client = _seed_running_history(db)
+    data_import = db.scalar(select(DataImport).where(DataImport.client_id == client.id))
+    assert data_import is not None
+    db.add(
+        HealthStatusMetric(
+            client_id=client.id,
+            data_import_id=data_import.id,
+            provider="garmin",
+            source_file="DI_CONNECT/DI-Connect-Wellness/2026-02-01_2026-05-12_116034249_healthStatusData.json",
+            source_record_id="2026-05-12",
+            calendar_date=datetime(2026, 5, 12, tzinfo=timezone.utc).date(),
+            heart_rate_value=58.0,
+            heart_rate_status="NORMAL",
+            hrv_value=62.0,
+            hrv_status="NORMAL",
+            respiration_value=14.2,
+            respiration_status="NORMAL",
+        )
+    )
+    db.commit()
+
+    response = api.get("/readiness/summary", params={"client_id": client.id})
+
+    assert response.status_code == 200
+    payload = response.json()
+    factors = {factor["name"]: factor for factor in payload["factors"]}
+
+    assert factors["health_status_detail"]["status"] == "green"
+    assert factors["health_status_detail"]["source_files"] == [
+        "DI_CONNECT/DI-Connect-Wellness/2026-02-01_2026-05-12_116034249_healthStatusData.json"
+    ]
+    assert "HRV 62" in factors["health_status_detail"]["summary"]
+    assert factors["recovery_data"]["status"] == "green"
+    assert factors["recovery_data"]["missing_inputs"] == [
+        "training_readiness",
+        "sleep_detail",
+        "acute_training_load",
+    ]
+
+
+def test_readiness_summary_uses_latest_acute_training_load_metric() -> None:
+    api, db = _test_client()
+    client = _seed_running_history(db)
+    data_import = db.scalar(select(DataImport).where(DataImport.client_id == client.id))
+    assert data_import is not None
+    db.add(
+        AcuteTrainingLoadMetric(
+            client_id=client.id,
+            data_import_id=data_import.id,
+            provider="garmin",
+            source_file="DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_20260217_20260528_116034249.json",
+            source_record_id="2026-05-12",
+            calendar_date=datetime(2026, 5, 12, tzinfo=timezone.utc).date(),
+            acwr_percent=83,
+            acwr_status="OPTIMAL",
+            acwr_status_feedback="FEEDBACK_2",
+            daily_training_load_acute=908,
+            daily_training_load_chronic=1089,
+            daily_acute_chronic_workload_ratio=0.8,
+        )
+    )
+    db.commit()
+
+    response = api.get("/readiness/summary", params={"client_id": client.id})
+
+    assert response.status_code == 200
+    payload = response.json()
+    factors = {factor["name"]: factor for factor in payload["factors"]}
+
+    assert factors["acute_training_load"]["status"] == "green"
+    assert factors["acute_training_load"]["source_files"] == [
+        "DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_20260217_20260528_116034249.json"
+    ]
+    assert "acute load 908" in factors["acute_training_load"]["summary"]
+    assert "ACWR status is OPTIMAL" in factors["acute_training_load"]["summary"]
+    assert factors["recovery_data"]["status"] == "green"
+    assert factors["recovery_data"]["missing_inputs"] == [
+        "training_readiness",
+        "sleep_detail",
+        "health_status_detail",
+    ]
 
 
 def _seed_empty_client(db: Session) -> Client:

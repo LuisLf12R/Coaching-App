@@ -8,6 +8,8 @@ DI_CONNECT_PREFIX = "DI_CONNECT/"
 SUMMARIZED_ACTIVITIES_SUFFIX = "_summarizedActivities.json"
 TRAINING_READINESS_PREFIX = "DI_CONNECT/DI-Connect-Metrics/TrainingReadinessDTO_"
 SLEEP_DATA_SUFFIX = "_sleepData.json"
+HEALTH_STATUS_DATA_SUFFIX = "_healthStatusData.json"
+ACUTE_TRAINING_LOAD_PREFIX = "DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_"
 
 
 class GarminExportInspectionError(ValueError):
@@ -26,6 +28,8 @@ class GarminExportInspection:
     summarized_activity_files: tuple[str, ...]
     training_readiness_files: tuple[str, ...]
     sleep_data_files: tuple[str, ...]
+    health_status_files: tuple[str, ...]
+    acute_training_load_files: tuple[str, ...]
 
     @property
     def has_di_connect(self) -> bool:
@@ -43,6 +47,14 @@ class GarminExportInspection:
     def sleep_data_file_count(self) -> int:
         return len(self.sleep_data_files)
 
+    @property
+    def health_status_file_count(self) -> int:
+        return len(self.health_status_files)
+
+    @property
+    def acute_training_load_file_count(self) -> int:
+        return len(self.acute_training_load_files)
+
     def to_summary(self) -> dict[str, object]:
         return {
             "source_path": str(self.source_path),
@@ -58,6 +70,10 @@ class GarminExportInspection:
             "training_readiness_file_count": self.training_readiness_file_count,
             "sleep_data_files": list(self.sleep_data_files),
             "sleep_data_file_count": self.sleep_data_file_count,
+            "health_status_files": list(self.health_status_files),
+            "health_status_file_count": self.health_status_file_count,
+            "acute_training_load_files": list(self.acute_training_load_files),
+            "acute_training_load_file_count": self.acute_training_load_file_count,
         }
 
 
@@ -110,6 +126,21 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
             and name.endswith(SLEEP_DATA_SUFFIX)
         )
     )
+    health_status_files = tuple(
+        sorted(
+            name
+            for name in json_files
+            if name.startswith("DI_CONNECT/DI-Connect-Wellness/")
+            and name.endswith(HEALTH_STATUS_DATA_SUFFIX)
+        )
+    )
+    acute_training_load_files = tuple(
+        sorted(
+            name
+            for name in json_files
+            if name.startswith(ACUTE_TRAINING_LOAD_PREFIX)
+        )
+    )
 
     return GarminExportInspection(
         source_path=export_path,
@@ -122,4 +153,6 @@ def inspect_garmin_export_zip(source_path: Union[Path, str]) -> GarminExportInsp
         summarized_activity_files=summarized_activity_files,
         training_readiness_files=training_readiness_files,
         sleep_data_files=sleep_data_files,
+        health_status_files=health_status_files,
+        acute_training_load_files=acute_training_load_files,
     )

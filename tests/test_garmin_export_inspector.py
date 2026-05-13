@@ -19,6 +19,7 @@ def test_inspector_finds_garmin_export_structure(tmp_path: Path) -> None:
         archive.writestr("DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Fitness/luis_1001_summarizedActivities.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Metrics/TrainingReadinessDTO_20260217_20260528_116034249.json", "[]")
+        archive.writestr("DI_CONNECT/DI-Connect-Metrics/MetricsAcuteTrainingLoad_20260217_20260528_116034249.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Wellness/2026_sleepData.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Wellness/2026_healthStatusData.json", "[]")
         archive.writestr("DI_CONNECT/DI-Connect-Uploaded-Files/UploadedFiles_0-_Part1.zip", b"")
@@ -26,11 +27,13 @@ def test_inspector_finds_garmin_export_structure(tmp_path: Path) -> None:
 
     inspection = inspect_garmin_export_zip(export_zip)
 
-    assert inspection.total_entries == 8
+    assert inspection.total_entries == 9
     assert inspection.has_di_connect is True
     assert inspection.summarized_activity_file_count == 2
     assert inspection.training_readiness_file_count == 1
+    assert inspection.acute_training_load_file_count == 1
     assert inspection.sleep_data_file_count == 1
+    assert inspection.health_status_file_count == 1
     assert inspection.summarized_activity_files == (
         "DI_CONNECT/DI-Connect-Fitness/luis_0_summarizedActivities.json",
         "DI_CONNECT/DI-Connect-Fitness/luis_1001_summarizedActivities.json",
@@ -63,4 +66,6 @@ def test_local_garmin_export_has_expected_summarized_activity_files() -> None:
     assert inspection.to_summary()["json_file_count"] == 151
     assert inspection.to_summary()["nested_zip_file_count"] == 7
     assert inspection.training_readiness_file_count == 4
+    assert inspection.acute_training_load_file_count == 10
     assert inspection.sleep_data_file_count == 10
+    assert inspection.health_status_file_count == 3

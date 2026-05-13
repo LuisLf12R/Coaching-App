@@ -62,6 +62,8 @@ class Client(Base):
     activities: Mapped[list["Activity"]] = relationship(back_populates="client")
     training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="client")
     sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="client")
+    health_status_metrics: Mapped[list["HealthStatusMetric"]] = relationship(back_populates="client")
+    acute_training_load_metrics: Mapped[list["AcuteTrainingLoadMetric"]] = relationship(back_populates="client")
 
 
 class DataImport(Base):
@@ -82,6 +84,8 @@ class DataImport(Base):
     activities: Mapped[list["Activity"]] = relationship(back_populates="data_import")
     training_readiness_metrics: Mapped[list["TrainingReadinessMetric"]] = relationship(back_populates="data_import")
     sleep_metrics: Mapped[list["SleepMetric"]] = relationship(back_populates="data_import")
+    health_status_metrics: Mapped[list["HealthStatusMetric"]] = relationship(back_populates="data_import")
+    acute_training_load_metrics: Mapped[list["AcuteTrainingLoadMetric"]] = relationship(back_populates="data_import")
 
 
 class RawRecord(Base):
@@ -238,3 +242,77 @@ class SleepMetric(Base):
 
     client: Mapped["Client"] = relationship(back_populates="sleep_metrics")
     data_import: Mapped["DataImport"] = relationship(back_populates="sleep_metrics")
+
+
+class HealthStatusMetric(Base):
+    __tablename__ = "health_status_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "client_id",
+            "calendar_date",
+            name="uq_health_status_metrics_provider_client_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), nullable=False, index=True)
+    data_import_id: Mapped[str] = mapped_column(ForeignKey("data_imports.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    calendar_date: Mapped[date] = mapped_column(Date(), nullable=False, index=True)
+    create_timestamp_utc: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    update_timestamp_utc: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    outliers_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    heart_rate_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    heart_rate_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    heart_rate_baseline_lower: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    heart_rate_baseline_upper: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hrv_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hrv_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    hrv_baseline_lower: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    hrv_baseline_upper: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    respiration_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    respiration_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    spo2_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    spo2_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    skin_temp_c_value: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    skin_temp_c_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    client: Mapped["Client"] = relationship(back_populates="health_status_metrics")
+    data_import: Mapped["DataImport"] = relationship(back_populates="health_status_metrics")
+
+
+class AcuteTrainingLoadMetric(Base):
+    __tablename__ = "acute_training_load_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "client_id",
+            "calendar_date",
+            name="uq_acute_training_load_metrics_provider_client_date",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=generate_id)
+    client_id: Mapped[str] = mapped_column(ForeignKey("clients.id"), nullable=False, index=True)
+    data_import_id: Mapped[str] = mapped_column(ForeignKey("data_imports.id"), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    source_file: Mapped[str] = mapped_column(String(500), nullable=False)
+    source_record_id: Mapped[str] = mapped_column(String(255), nullable=False, index=True)
+    calendar_date: Mapped[date] = mapped_column(Date(), nullable=False, index=True)
+    timestamp: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    acwr_percent: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    acwr_status: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    acwr_status_feedback: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    daily_training_load_acute: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    daily_training_load_chronic: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    daily_acute_chronic_workload_ratio: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    provider_metadata: Mapped[Optional[dict[str, Any]]] = mapped_column(json_storage_type, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    client: Mapped["Client"] = relationship(back_populates="acute_training_load_metrics")
+    data_import: Mapped["DataImport"] = relationship(back_populates="acute_training_load_metrics")
